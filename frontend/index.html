@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Tutor</title>
+
+  <!-- KaTeX for math rendering -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"/>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f4f8;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Login screen ── */
+    #login-screen {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+
+    #login-screen h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+    }
+
+    #login-screen p {
+      color: #64748b;
+      font-size: 14px;
+      margin-bottom: 28px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .form-group input:focus {
+      border-color: #6366f1;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.2s;
+    }
+
+    .btn-primary:hover { background: #4f46e5; }
+    .btn-primary:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    .switch-link {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 13px;
+      color: #64748b;
+    }
+
+    .switch-link a {
+      color: #6366f1;
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .error-msg {
+      background: #fef2f2;
+      color: #dc2626;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      margin-bottom: 16px;
+      display: none;
+    }
+
+    /* ── Chat screen ── */
+    #chat-screen {
+      display: none;
+      flex-direction: column;
+      width: 100%;
+      max-width: 720px;
+      height: 100vh;
+      background: white;
+      box-shadow: 0 0 40px rgba(0,0,0,0.08);
+    }
+
+    #chat-header {
+      padding: 16px 20px;
+      background: #6366f1;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #chat-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    #chat-header span {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    #logout-btn {
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .message.tutor {
+      background: #f1f5f9;
+      color: #1e293b;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+    }
+
+    .message.student {
+      background: #6366f1;
+      color: white;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.thinking {
+      background: #f1f5f9;
+      color: #94a3b8;
+      align-self: flex-start;
+      font-style: italic;
+    }
+
+    .message-meta {
+      font-size: 11px;
+      margin-top: 4px;
+      opacity: 0.6;
+    }
+
+    .message.tutor .message-meta { text-align: left; }
+    .message.student .message-meta { text-align: right; color: white; }
+
+    #input-area {
+      padding: 16px 20px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      gap: 10px;
+      background: white;
+    }
+
+    #message-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 24px;
+      font-size: 15px;
+      outline: none;
+      resize: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+
+    #message-input:focus { border-color: #6366f1; }
+
+    #send-btn {
+      width: 44px;
+      height: 44px;
+      background: #6366f1;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    #send-btn:hover { background: #4f46e5; }
+    #send-btn:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    #send-btn svg { width: 18px; height: 18px; fill: white; }
+
+    #topic-badge {
+      display: none;
+      background: #ede9fe;
+      color: #6366f1;
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      margin: 0 20px 8px;
+      width: fit-content;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── LOGIN SCREEN ── -->
+<div id="login-screen">
+  <h1>AI Tutor</h1>
+  <p>Your personalised A-Level Pure Mathematics tutor</p>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- Login form -->
+  <div id="login-form">
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com"/>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••"/>
+    </div>
+    <button class="btn-primary" id="login-btn">Sign in</button>
+    <div class="switch-link">
+      Don't have an account? <a onclick="showRegister()">Register</a>
+    </div>
+  </div>
+
+  <!-- Register form -->
+  <div id="register-form" style="display:none">
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="reg-name" placeholder="Your name"/>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="reg-email" placeholder="you@example.com"/>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="reg-password" placeholder="Min 8 characters"/>
+    </div>
+    <button class="btn-primary" id="register-btn">Create account</button>
+    <div class="switch-link">
+      Already have an account? <a onclick="showLogin()">Sign in</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHAT SCREEN ── -->
+<div id="chat-screen">
+  <div id="chat-header">
+    <div>
+      <h2>AI Tutor — Pure Mathematics</h2>
+      <span id="student-name"></span>
+    </div>
+    <button id="logout-btn" onclick="logout()">Sign out</button>
+  </div>
+
+  <div id="topic-badge"></div>
+
+  <div id="messages"></div>
+
+  <div id="input-area">
+    <textarea
+      id="message-input"
+      placeholder="Ask a question, request a practice problem, or type 'hint'..."
+      rows="1"
+    ></textarea>
+    <button id="send-btn" onclick="sendMessage()">
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script>
+const API = "http://localhost:8000/api/v1";
+let token = localStorage.getItem("token");
+let sessionId = null;
+let studentName = "";
+
+// ── On load ──────────────────────────────────────────────────
+window.onload = async () => {
+  if (token) {
+    const ok = await verifyToken();
+    if (ok) {
+      showChat();
+      await startSession();
+    } else {
+      localStorage.removeItem("token");
+      token = null;
+    }
+  }
+};
+
+// ── Auth helpers ──────────────────────────────────────────────
+async function verifyToken() {
+  try {
+    const res = await fetch(`${API}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    studentName = data.name;
+    return true;
+  } catch { return false; }
+}
+
+function showRegister() {
+  document.getElementById("login-form").style.display = "none";
+  document.getElementById("register-form").style.display = "block";
+  clearError();
+}
+
+function showLogin() {
+  document.getElementById("register-form").style.display = "none";
+  document.getElementById("login-form").style.display = "block";
+  clearError();
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-msg");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function clearError() {
+  document.getElementById("error-msg").style.display = "none";
+}
+
+// ── Login ─────────────────────────────────────────────────────
+document.getElementById("login-btn").onclick = async () => {
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  if (!email || !password) return showError("Please fill in all fields.");
+
+  const btn = document.getElementById("login-btn");
+  btn.disabled = true;
+  btn.textContent = "Signing in...";
+  clearError();
+
+  try {
+    const form = new URLSearchParams();
+    form.append("username", email);
+    form.append("password", password);
+
+    const res = await fetch(`${API}/auth/login`, {
+      method: "POST",
+      body: form
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Login failed");
+    }
+
+    const data = await res.json();
+    token = data.access_token;
+    localStorage.setItem("token", token);
+    await verifyToken();
+    showChat();
+    await startSession();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Sign in";
+  }
+};
+
+// ── Register ──────────────────────────────────────────────────
+document.getElementById("register-btn").onclick = async () => {
+  const name = document.getElementById("reg-name").value.trim();
+  const email = document.getElementById("reg-email").value.trim();
+  const password = document.getElementById("reg-password").value;
+
+  if (!name || !email || !password) return showError("Please fill in all fields.");
+  if (password.length < 8) return showError("Password must be at least 8 characters.");
+
+  const btn = document.getElementById("register-btn");
+  btn.disabled = true;
+  btn.textContent = "Creating account...";
+  clearError();
+
+  try {
+    const res = await fetch(`${API}/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Registration failed");
+    }
+
+    // Auto login after register
+    document.getElementById("login-email").value = email;
+    document.getElementById("login-password").value = password;
+    showLogin();
+    document.getElementById("login-btn").click();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Create account";
+  }
+};
+
+// ── Session ───────────────────────────────────────────────────
+async function startSession() {
+  try {
+    const res = await fetch(`${API}/sessions/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ subject: "pure_mathematics", mode: "explain" })
+    });
+    const data = await res.json();
+    sessionId = data.session_id;
+    addMessage("tutor", data.message);
+  } catch (e) {
+    addMessage("tutor", "Sorry, I couldn't connect to the server. Please refresh.");
+  }
+}
+
+// ── Send message ──────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById("message-input");
+  const text = input.value.trim();
+  if (!text || !sessionId) return;
+
+  input.value = "";
+  input.style.height = "auto";
+  addMessage("student", text);
+
+  const thinking = addMessage("thinking", "Thinking...");
+  document.getElementById("send-btn").disabled = true;
+
+  try {
+    const res = await fetch(`${API}/sessions/message`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ session_id: sessionId, message: text })
+    });
+
+    const data = await res.json();
+    thinking.remove();
+
+    addMessage("tutor", data.response, {
+      intent: data.intent,
+      topic: data.topic,
+      sources: data.sources_used
+    });
+
+    // Update topic badge
+    if (data.topic) {
+      const badge = document.getElementById("topic-badge");
+      badge.textContent = `Topic: ${data.topic}`;
+      badge.style.display = "block";
+    }
+  } catch (e) {
+    thinking.remove();
+    addMessage("tutor", "Sorry, something went wrong. Please try again.");
+  } finally {
+    document.getElementById("send-btn").disabled = false;
+    input.focus();
+  }
+}
+
+// ── UI helpers ────────────────────────────────────────────────
+function showChat() {
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("chat-screen").style.display = "flex";
+  document.getElementById("student-name").textContent = studentName;
+  document.getElementById("message-input").focus();
+}
+
+function logout() {
+  localStorage.removeItem("token");
+  token = null;
+  sessionId = null;
+  document.getElementById("messages").innerHTML = "";
+  document.getElementById("chat-screen").style.display = "none";
+  document.getElementById("login-screen").style.display = "block";
+  document.getElementById("topic-badge").style.display = "none";
+}
+
+function addMessage(role, text, meta = {}) {
+  const messages = document.getElementById("messages");
+  const div = document.createElement("div");
+  div.className = `message ${role}`;
+  div.innerHTML = formatText(text);
+
+  if (meta.topic && role === "tutor") {
+    const m = document.createElement("div");
+    m.className = "message-meta";
+    m.textContent = `${meta.sources || 0} sources used`;
+    div.appendChild(m);
+  }
+
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+
+  // Render LaTeX
+  if (window.renderMathInElement) {
+    renderMathInElement(div, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true },
+      ],
+      throwOnError: false
+    });
+  }
+
+  return div;
+}
+
+function formatText(text) {
+  // Convert markdown-style bold and newlines
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\n/g, "<br>");
+}
+
+// Auto-resize textarea
+document.getElementById("message-input").addEventListener("input", function() {
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 120) + "px";
+});
+
+// Send on Enter (Shift+Enter for new line)
+document.getElementById("message-input").addEventListener("keydown", function(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+</script>
+
+</body>
+</html>
