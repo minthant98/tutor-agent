@@ -18,9 +18,13 @@ logger = logging.getLogger(__name__)
 def route_by_intent(state: SessionState) -> str:
     intent = state.get("intent", "unknown")
     has_quiz = bool(state.get("quiz_question"))
-    logger.info("Routing — intent: %s | has_quiz_question: %s", intent, has_quiz)
 
-    if state.get("quiz_question") and intent in ("check_answer", "unknown", "explain"):
+    logger.info("Routing — intent: %s | has_quiz: %s", intent, has_quiz)
+
+    # If there's an active quiz question, any non-quiz/non-off-topic
+    # response is treated as an answer attempt
+    if has_quiz and intent not in ("quiz", "off_topic", "greeting"):
+        logger.info("Active quiz detected — routing to evaluator")
         return "evaluator_agent"
 
     routes = {

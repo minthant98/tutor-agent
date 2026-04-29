@@ -151,10 +151,15 @@ Return JSON:
 
 async def evaluator_agent(state: SessionState) -> dict[str, Any]:
     quiz = state.get("quiz_question", {})
-    student_answer = state.get("current_input", "")
+    # Check student_answer first, then fall back to current_input
+    student_answer = state.get("student_answer") or state.get("current_input", "")
 
     if not quiz:
-        return {"evaluation_result": None}
+        # No quiz question — treat as explanation request
+        return {
+            "final_response": "I don't have an active question for you. Would you like me to give you a practice question?",
+            "evaluation_result": None,
+        }
 
     prompt = f"""You are a {state['exam_board'].capitalize()} examiner marking a student answer.
 
@@ -165,17 +170,16 @@ Student answer: {student_answer}
 
 Award marks fairly. Give partial credit where reasoning is correct.
 
-Return JSON with exactly these keys:
+Return JSON:
 {{
-  "marks_awarded": a number (e.g. 3),
-  "score_pct": a decimal between 0.0 and 1.0 (e.g. 0.75),
+  "marks_awarded": number,
+  "score_pct": float between 0.0 and 1.0,
   "feedback": "specific encouraging feedback",
   "model_answer": "ideal full answer with working shown"
 }}"""
 
     result = await llm.generate_json(prompt)
-    
-    # Safe defaults — never let None values through
+
     marks_awarded = float(result.get("marks_awarded") or 0)
     score_pct = float(result.get("score_pct") or 0.0)
     available = int(quiz.get("marks_available") or 1)
@@ -206,7 +210,7 @@ Return JSON with exactly these keys:
         "student_answer": student_answer,
     }
     
-
+    
 # ── 6. Hint Agent ─────────────────────────────────────────────────────────────
 
 async def hint_agent(state: SessionState) -> dict[str, Any]:
