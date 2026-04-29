@@ -19,14 +19,60 @@ async def process_message(
 ) -> tuple[str, SessionState]:
 
     state["current_input"] = student_message
+    state["current_input_type"] = "text"
     state["conversation_history"].append({
         "role": "student",
         "content": student_message,
         "metadata": {"turn": state.get("turn_count", 0)},
     })
 
+    # ── SHORT CIRCUIT: if active quiz, evaluate directly ──────────
+    # This bypasses LangGraph state loss entirely
+    if state.get("quiz_question"):
+        from app.agents.nodes import evaluator_agent, rules_engine, adapt_agent
+        state["student_answer"] = student_message
+
+        eval_result = await evaluator_agent(state)
+        state.update(eval_result)
+
+        rules_result = rules_engine(state)
+        state.update(rules_result)
+
+        adapt_result = await adapt_agent(state)
+        state.update(adapt_result)
+
+        response = state.get("final_response") or "Could you rephrase that?"
+
+        state["conversation_history"].append({
+            "role": "tutor",
+            "content": response,
+            "metadata": {
+                "intent": "check_answer",
+                "topic": state.get("topic"),
+                "rules_action": state.get("rules_action"),
+            },
+        })
+
+        # Clear quiz after evaluation
+        state["quiz_question"] = None
+        state["student_answer"] = None
+        state["turn_count"] = state.get("turn_count", 0) + 1
+
+        db_session.messages = state.get("conversation_history", [])
+        db_session.topic = state.get("topic")
+        await db.flush()
+
+        if state.get("evaluation_result"):
+            await _update_mastery(db, state)
+
+        return response, state
+
+    # ── NORMAL FLOW: run the full graph ───────────────────────────
+    import copy
+    state_copy = copy.deepcopy(state)
+
     try:
-        result: SessionState = await tutor_graph.ainvoke(state)
+        result: SessionState = await tutor_graph.ainvoke(state_copy)
     except Exception as e:
         logger.error("Graph error: %s", e, exc_info=True)
         return "Sorry, I ran into an error. Please try again.", state
@@ -43,34 +89,30 @@ async def process_message(
         },
     })
 
-    # Carry forward important state that LangGraph resets
+    # Carry forward important state
     keys_to_preserve = [
-        "quiz_question",
-        "weak_topics",
-        "mastery_scores",
-        "hints_given",
-        "consecutive_wrong",
-        "consecutive_correct",
-        "mode",
-        "exam_board",
-        "exam_level",
-        "subscription_tier",
+        "weak_topics", "mastery_scores", "hints_given",
+        "consecutive_wrong", "consecutive_correct",
+        "mode", "exam_board", "exam_level", "subscription_tier",
     ]
     for key in keys_to_preserve:
         if not result.get(key) and state.get(key):
             result[key] = state[key]
 
-    # Persist messages to DB
+    # Store quiz question for next turn
+    if result.get("quiz_question"):
+        pass  # already on result, good
+    elif state.get("quiz_question"):
+        result["quiz_question"] = state["quiz_question"]
+
     db_session.messages = result.get("conversation_history", [])
     db_session.topic = result.get("topic")
     await db.flush()
 
-    # Update mastery if quiz was evaluated
     if result.get("evaluation_result"):
         await _update_mastery(db, result)
 
     return response, result
-
 
 async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
     eval_result = state.get("evaluation_result")

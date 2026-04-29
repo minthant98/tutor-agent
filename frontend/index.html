@@ -301,12 +301,15 @@
 <!-- ── CHAT SCREEN ── -->
 <div id="chat-screen">
   <div id="chat-header">
-    <div>
-      <h2>AI Tutor — Pure Mathematics</h2>
-      <span id="student-name"></span>
-    </div>
+  <div>
+    <h2>AI Tutor — Pure Mathematics</h2>
+    <span id="student-name"></span>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button id="new-session-btn" onclick="newSession()" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px">New session</button>
     <button id="logout-btn" onclick="logout()">Sign out</button>
   </div>
+</div>
 
   <div id="topic-badge"></div>
 
@@ -329,8 +332,8 @@ const API = "http://localhost:8000/api/v1";
 let token = localStorage.getItem("token");
 let sessionId = null;
 let studentName = "";
+let isStartingSession = false;  // prevent duplicate sessions
 
-// ── On load ──────────────────────────────────────────────────
 window.onload = async () => {
   if (token) {
     const ok = await verifyToken();
@@ -344,7 +347,6 @@ window.onload = async () => {
   }
 };
 
-// ── Auth helpers ──────────────────────────────────────────────
 async function verifyToken() {
   try {
     const res = await fetch(`${API}/auth/me`, {
@@ -379,7 +381,6 @@ function clearError() {
   document.getElementById("error-msg").style.display = "none";
 }
 
-// ── Login ─────────────────────────────────────────────────────
 document.getElementById("login-btn").onclick = async () => {
   const email = document.getElementById("login-email").value.trim();
   const password = document.getElementById("login-password").value;
@@ -419,7 +420,6 @@ document.getElementById("login-btn").onclick = async () => {
   }
 };
 
-// ── Register ──────────────────────────────────────────────────
 document.getElementById("register-btn").onclick = async () => {
   const name = document.getElementById("reg-name").value.trim();
   const email = document.getElementById("reg-email").value.trim();
@@ -445,7 +445,6 @@ document.getElementById("register-btn").onclick = async () => {
       throw new Error(err.detail || "Registration failed");
     }
 
-    // Auto login after register
     document.getElementById("login-email").value = email;
     document.getElementById("login-password").value = password;
     showLogin();
@@ -458,8 +457,11 @@ document.getElementById("register-btn").onclick = async () => {
   }
 };
 
-// ── Session ───────────────────────────────────────────────────
 async function startSession() {
+  // Guard against duplicate calls
+  if (isStartingSession) return;
+  isStartingSession = true;
+
   try {
     const res = await fetch(`${API}/sessions/start`, {
       method: "POST",
@@ -467,17 +469,26 @@ async function startSession() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ subject: "pure_mathematics", mode: "explain" })
+      body: JSON.stringify({ subject: "pure_mathematics", mode: "quiz" })
     });
     const data = await res.json();
     sessionId = data.session_id;
     addMessage("tutor", data.message);
   } catch (e) {
-    addMessage("tutor", "Sorry, I couldn't connect to the server. Please refresh.");
+    addMessage("tutor", "Sorry, I couldn't connect. Please refresh.");
+  } finally {
+    isStartingSession = false;
   }
 }
 
-// ── Send message ──────────────────────────────────────────────
+async function newSession() {
+  if (isStartingSession) return;
+  document.getElementById("messages").innerHTML = "";
+  document.getElementById("topic-badge").style.display = "none";
+  sessionId = null;
+  await startSession();
+}
+
 async function sendMessage() {
   const input = document.getElementById("message-input");
   const text = input.value.trim();
@@ -485,6 +496,7 @@ async function sendMessage() {
 
   input.value = "";
   input.style.height = "auto";
+  input.disabled = true;
   addMessage("student", text);
 
   const thinking = addMessage("thinking", "Thinking...");
@@ -509,7 +521,6 @@ async function sendMessage() {
       sources: data.sources_used
     });
 
-    // Update topic badge
     if (data.topic) {
       const badge = document.getElementById("topic-badge");
       badge.textContent = `Topic: ${data.topic}`;
@@ -520,11 +531,11 @@ async function sendMessage() {
     addMessage("tutor", "Sorry, something went wrong. Please try again.");
   } finally {
     document.getElementById("send-btn").disabled = false;
+    input.disabled = false;
     input.focus();
   }
 }
 
-// ── UI helpers ────────────────────────────────────────────────
 function showChat() {
   document.getElementById("login-screen").style.display = "none";
   document.getElementById("chat-screen").style.display = "flex";
@@ -548,17 +559,16 @@ function addMessage(role, text, meta = {}) {
   div.className = `message ${role}`;
   div.innerHTML = formatText(text);
 
-  if (meta.topic && role === "tutor") {
+  if (meta.sources && role === "tutor") {
     const m = document.createElement("div");
     m.className = "message-meta";
-    m.textContent = `${meta.sources || 0} sources used`;
+    m.textContent = `${meta.sources} sources used`;
     div.appendChild(m);
   }
 
   messages.appendChild(div);
   messages.scrollTop = messages.scrollHeight;
 
-  // Render LaTeX
   if (window.renderMathInElement) {
     renderMathInElement(div, {
       delimiters: [
@@ -575,19 +585,16 @@ function addMessage(role, text, meta = {}) {
 }
 
 function formatText(text) {
-  // Convert markdown-style bold and newlines
   return text
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\n/g, "<br>");
 }
 
-// Auto-resize textarea
 document.getElementById("message-input").addEventListener("input", function() {
   this.style.height = "auto";
   this.style.height = Math.min(this.scrollHeight, 120) + "px";
 });
 
-// Send on Enter (Shift+Enter for new line)
 document.getElementById("message-input").addEventListener("keydown", function(e) {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
