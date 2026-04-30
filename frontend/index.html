@@ -469,7 +469,7 @@ async function startSession() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ subject: "pure_mathematics", mode: "quiz" })
+      body: JSON.stringify({ subject: "pure_mathematics", mode: "explain" })
     });
     const data = await res.json();
     sessionId = data.session_id;

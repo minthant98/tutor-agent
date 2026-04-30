@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.v1.endpoints.auth import get_current_student
+from app.core.session_store import delete_session, load_session, save_session
 from app.db.database import get_db
 from app.db.models import MasteryState, Student, TutorSession
 from app.schemas.schemas import (
@@ -20,9 +21,6 @@ from app.workflows.state import SessionState, initial_state
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["sessions"])
-
-# In-memory state store
-_states: dict[str, SessionState] = {}
 
 
 # ── POST /sessions/start ──────────────────────────────────────────────────────
@@ -65,7 +63,7 @@ async def start_session(
     if body.topic:
         state["topic"] = body.topic
 
-    _states[state["session_id"]] = state
+    save_session(state)  # ← replaces: _states[state["session_id"]] = state
 
     return StartSessionResponse(
         session_id=state["session_id"],
@@ -81,7 +79,7 @@ async def send_message(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    state = _states.get(body.session_id)
+    state = load_session(body.session_id)  # ← replaces: _states.get(body.session_id)
     if not state:
         raise HTTPException(status_code=404, detail="Session not found.")
 
@@ -102,7 +100,7 @@ async def send_message(
         state=state,
         student_message=body.message,
     )
-    _states[body.session_id] = updated_state
+    save_session(updated_state)  # ← replaces: _states[body.session_id] = updated_state
 
     return MessageResponse(
         session_id=body.session_id,
@@ -123,7 +121,7 @@ async def end_session(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    state = _states.pop(session_id, None)
+    state = delete_session(session_id)  # ← replaces: _states.pop(session_id, None)
 
     result = await db.execute(
         select(TutorSession).where(TutorSession.id == session_id)

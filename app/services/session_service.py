@@ -27,45 +27,52 @@ async def process_message(
     })
 
     # ── SHORT CIRCUIT: if active quiz, evaluate directly ──────────
-    # This bypasses LangGraph state loss entirely
     if state.get("quiz_question"):
-        from app.agents.nodes import evaluator_agent, rules_engine, adapt_agent
-        state["student_answer"] = student_message
+        from app.agents.nodes import evaluator_agent, rules_engine, adapt_agent, intent_agent
 
-        eval_result = await evaluator_agent(state)
-        state.update(eval_result)
+        intent_result = await intent_agent(state)
+        detected_intent = intent_result.get("intent", "unknown")
 
-        rules_result = rules_engine(state)
-        state.update(rules_result)
+        if detected_intent not in ("explain", "quiz", "off_topic", "greeting"):
+            state["student_answer"] = student_message
+            state.update(intent_result)
 
-        adapt_result = await adapt_agent(state)
-        state.update(adapt_result)
+            eval_result = await evaluator_agent(state)
+            state.update(eval_result)
 
-        response = state.get("final_response") or "Could you rephrase that?"
+            rules_result = rules_engine(state)
+            state.update(rules_result)
 
-        state["conversation_history"].append({
-            "role": "tutor",
-            "content": response,
-            "metadata": {
-                "intent": "check_answer",
-                "topic": state.get("topic"),
-                "rules_action": state.get("rules_action"),
-            },
-        })
+            adapt_result = await adapt_agent(state)
+            state.update(adapt_result)
 
-        # Clear quiz after evaluation
+            response = state.get("final_response") or "Could you rephrase that?"
+
+            state["conversation_history"].append({
+                "role": "tutor",
+                "content": response,
+                "metadata": {
+                    "intent": "check_answer",
+                    "topic": state.get("topic"),
+                    "rules_action": state.get("rules_action"),
+                },
+            })
+
+            state["quiz_question"] = None
+            state["student_answer"] = None
+            state["turn_count"] = state.get("turn_count", 0) + 1
+
+            db_session.messages = state.get("conversation_history", [])
+            db_session.topic = state.get("topic")
+            await db.flush()
+
+            if state.get("evaluation_result"):
+                await _update_mastery(db, state)
+
+            return response, state
+
+        # Student wants something else — clear quiz and fall through
         state["quiz_question"] = None
-        state["student_answer"] = None
-        state["turn_count"] = state.get("turn_count", 0) + 1
-
-        db_session.messages = state.get("conversation_history", [])
-        db_session.topic = state.get("topic")
-        await db.flush()
-
-        if state.get("evaluation_result"):
-            await _update_mastery(db, state)
-
-        return response, state
 
     # ── NORMAL FLOW: run the full graph ───────────────────────────
     import copy
@@ -89,7 +96,6 @@ async def process_message(
         },
     })
 
-    # Carry forward important state
     keys_to_preserve = [
         "weak_topics", "mastery_scores", "hints_given",
         "consecutive_wrong", "consecutive_correct",
@@ -99,9 +105,8 @@ async def process_message(
         if not result.get(key) and state.get(key):
             result[key] = state[key]
 
-    # Store quiz question for next turn
     if result.get("quiz_question"):
-        pass  # already on result, good
+        pass
     elif state.get("quiz_question"):
         result["quiz_question"] = state["quiz_question"]
 
@@ -113,6 +118,7 @@ async def process_message(
         await _update_mastery(db, result)
 
     return response, result
+
 
 async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
     eval_result = state.get("evaluation_result")
@@ -143,7 +149,6 @@ async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
         )
         db.add(mastery)
 
-    # Safe defaults for every field
     current_score = float(mastery.mastery_score or 0.0)
     current_attempts = int(mastery.total_attempts or 0)
     current_streak = int(mastery.correct_streak or 0)
