@@ -16,6 +16,7 @@ app.add_middleware(
         "http://localhost:5500",
         "http://127.0.0.1:5500",
         "http://localhost:3000",
+        "https://tutor-agent-production-d399.up.railway.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
