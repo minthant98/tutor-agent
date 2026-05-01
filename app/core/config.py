@@ -25,6 +25,10 @@ class Settings(BaseSettings):
 
     # Auth
     access_token_expire_minutes: int = 60
+    
+    # Qdrant
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
 
     @property
     def is_production(self) -> bool:
