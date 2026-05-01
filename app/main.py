@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.sessions import router as sessions_router
+from app.api.v1.endpoints.admin import router as admin_router
+
 
 app = FastAPI(
     title="AI Tutor Agent",
@@ -26,7 +28,7 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
 app.include_router(sessions_router, prefix=settings.api_v1_prefix)
-
+app.include_router(admin_router, prefix=settings.api_v1_prefix)
 
 @app.get("/health")
 async def health():
