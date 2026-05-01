@@ -40,12 +40,12 @@ async def retrieve(
 
         query_vector = encoder.encode(query).tolist()
 
-        results = client.search(
+        results = client.query_points(
             collection_name=COLLECTION_NAME,
-            query_vector=query_vector,
+            query=query_vector,
             limit=n_results,
             with_payload=True,
-        )
+        ).points
 
         chunks = []
         for result in results:
