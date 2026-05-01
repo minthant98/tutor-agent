@@ -35,12 +35,6 @@ async def start_session(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    # Free tier cannot access quiz or exam practice
-    if student.subscription_tier == "free" and body.mode in ("quiz", "exam_practice"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Quiz and exam practice require a Pro subscription.",
-        )
 
     db_session = TutorSession(
         student_id=student.id,

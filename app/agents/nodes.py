@@ -268,9 +268,6 @@ def rules_engine(state: SessionState) -> dict[str, Any]:
     elif state.get("hints_given", 0) >= 5:
         action = "show_worked_example"
 
-    elif state.get("subscription_tier") == "free" and state.get("mode") == "quiz":
-        action = "redirect_off_topic"
-        flags.append("free_tier_quiz_blocked")
 
     logger.info("Rules engine: %s", action)
     return {
