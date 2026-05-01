@@ -67,7 +67,7 @@ async def retrieval_agent(state: SessionState) -> dict[str, Any]:
     if not query or state.get("intent") in ("off_topic", "greeting", "unknown"):
         return {"retrieved_chunks": []}
 
-    from app.rag.retriever import retrieve
+    from app.rag.qdrant_retriever import retrieve
     chunks = await retrieve(
         query=query,
         subject=state["subject"],
