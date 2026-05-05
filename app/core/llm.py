@@ -3,6 +3,7 @@ import json
 import logging
 import base64
 from tenacity import retry, stop_after_attempt, wait_exponential
+from langsmith import traceable
 import httpx
 
 from app.core.config import settings
@@ -23,13 +24,7 @@ class LLM:
             "Content-Type": "application/json",
         }
 
-    def _get_tracer(self):
-        try:
-            from langsmith import traceable
-            return traceable
-        except Exception:
-            return lambda **kwargs: (lambda f: f)
-
+    @traceable(name="llm.generate", run_type="llm")
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
     async def generate(self, prompt: str, system: str = "") -> str:
         messages = []
@@ -46,19 +41,6 @@ class LLM:
             "stop": None,
         }
 
-        # Log to LangSmith manually
-        try:
-            from langsmith import Client
-            ls_client = Client()
-            run = ls_client.create_run(
-                name="llm.generate",
-                run_type="llm",
-                inputs={"messages": messages},
-                project_name=os.getenv("LANGSMITH_PROJECT", "ascend-tutor"),
-            )
-        except Exception:
-            run = None
-
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 f"{GROQ_BASE}/chat/completions",
@@ -68,25 +50,11 @@ class LLM:
 
         if response.status_code != 200:
             logger.error("LLM error %s: %s", response.status_code, response.text)
-            if run:
-                try:
-                    from langsmith import Client
-                    Client().update_run(run.id, error=response.text)
-                except Exception:
-                    pass
             raise LLMError(f"LLM request failed: {response.status_code}")
 
-        content = response.json()["choices"][0]["message"]["content"]
+        return response.json()["choices"][0]["message"]["content"]
 
-        if run:
-            try:
-                from langsmith import Client
-                Client().update_run(run.id, outputs={"content": content})
-            except Exception:
-                pass
-
-        return content
-
+    @traceable(name="llm.generate_json", run_type="llm")
     async def generate_json(self, prompt: str, system: str = "") -> dict:
         json_system = (
             (system + "\n\n" if system else "")
@@ -126,6 +94,7 @@ class LLM:
             logger.error("JSON parse failed. Raw output: %s", raw[:300])
             raise LLMError(f"LLM returned invalid JSON: {e}") from e
 
+    @traceable(name="llm.vision", run_type="llm")
     async def vision(self, prompt: str, image_bytes: bytes, system: str = "") -> str:
         b64 = base64.b64encode(image_bytes).decode()
 
