@@ -2,8 +2,7 @@ import logging
 from typing import Any
 
 from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
-
+from sentence_transformers import SentenceTransformer, CrossEncoder
 from app.core.config import settings
 from app.rag.qdrant_ingestor import COLLECTION_NAME, get_qdrant_client
 
@@ -11,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 _client = None
 _encoder = None
+_reranker = None
 
 
 def _get_client() -> QdrantClient:
@@ -27,6 +27,13 @@ def _get_encoder() -> SentenceTransformer:
     return _encoder
 
 
+def _get_reranker() -> CrossEncoder:
+    global _reranker
+    if _reranker is None:
+        _reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    return _reranker
+
+
 async def retrieve(
     query: str,
     subject: str,
@@ -40,26 +47,44 @@ async def retrieve(
 
         query_vector = encoder.encode(query).tolist()
 
+        # Step 1 — retrieve top 20 candidates from Qdrant
         results = client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
-            limit=n_results,
+            limit=20,
             with_payload=True,
         ).points
 
-        chunks = []
-        for result in results:
-            score = result.score
-            if score > 0.3:
-                payload = result.payload or {}
-                chunks.append({
-                    "text": payload.get("text", ""),
-                    "source": payload.get("source_file", "unknown"),
-                    "score": round(score, 3),
-                    "metadata": payload,
-                })
+        if not results:
+            return []
 
-        logger.info("Retrieved %d chunks for: %s", len(chunks), query[:50])
+        # Step 2 — rerank with cross-encoder
+        reranker = _get_reranker()
+        texts = [r.payload.get("text", "") for r in results]
+        pairs = [[query, text] for text in texts]
+        scores = reranker.predict(pairs)
+
+        # Step 3 — sort by reranker score and take top n_results
+        ranked = sorted(
+            zip(scores, results),
+            key=lambda x: x[0],
+            reverse=True,
+        )[:n_results]
+
+        chunks = []
+        for score, result in ranked:
+            payload = result.payload or {}
+            chunks.append({
+                "text": payload.get("text", ""),
+                "source": payload.get("source_file", "unknown"),
+                "score": round(float(score), 3),
+                "metadata": payload,
+            })
+
+        logger.info(
+            "Retrieved %d chunks (reranked from 20) for: %s",
+            len(chunks), query[:50]
+        )
         return chunks
 
     except Exception as e:
