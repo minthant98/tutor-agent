@@ -265,7 +265,6 @@ Give a hint that:
         "hints_given": hints_given + 1,
     }
 
-
 # ── 7. Rules Engine (deterministic — no AI) ───────────────────────────────────
 
 def rules_engine(state: SessionState) -> dict[str, Any]:
