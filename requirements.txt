@@ -126,3 +126,4 @@ zipp==3.23.1
 zstandard==0.25.0
 redis
 qdrant-client
+langsmith
