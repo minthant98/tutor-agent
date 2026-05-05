@@ -5,6 +5,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import httpx
 
 from app.core.config import settings
+from langsmith import traceable
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,8 @@ class LLM:
         }
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
+    
+    @traceable(name="llm.generate")
     async def generate(self, prompt: str, system: str = "") -> str:
         messages = []
         if system:
@@ -50,7 +53,8 @@ class LLM:
             raise LLMError(f"LLM request failed: {response.status_code}")
 
         return response.json()["choices"][0]["message"]["content"]
-
+    
+    @traceable(name="llm.generate_json")
     async def generate_json(self, prompt: str, system: str = "") -> dict:
         json_system = (
             (system + "\n\n" if system else "")
@@ -93,6 +97,8 @@ class LLM:
         except json.JSONDecodeError as e:
             logger.error("JSON parse failed. Raw output: %s", raw[:300])
             raise LLMError(f"LLM returned invalid JSON: {e}") from e
+        
+    @traceable(name="llm.vision")
     async def vision(self, prompt: str, image_bytes: bytes, system: str = "") -> str:
         b64 = base64.b64encode(image_bytes).decode()
 
