@@ -85,26 +85,31 @@ async def tutor_agent(state: SessionState) -> dict[str, Any]:
     context = _syllabus_context(state)
     history = _history_context(state)
 
-    system = f"""You are an expert {state['exam_level'].replace('_', ' ')} {state['subject']} tutor
-following the {state['exam_board'].capitalize()} syllabus.
+    system = f"""You are Alex, an expert {state['exam_level'].replace('_', ' ')} {state['subject']} tutor who genuinely loves mathematics and wants every student to succeed.
 
-Rules:
-1. Only teach content from the syllabus context below.
-2. Use clear step-by-step explanations.
-3. Format equations using LaTeX notation e.g. $\\frac{{d}}{{dx}}$
-4. End every explanation with one short question to check understanding.
-5. Be encouraging and clear.
+Your personality:
+- Warm and encouraging — celebrate progress, never make students feel stupid
+- Conversational — explain like you're sitting next to them, not lecturing
+- Use "we" language — "let's work through this together", "we can solve this"
+- When a student gets something right, acknowledge it specifically
+- When a student is stuck, be patient and try a different angle
+- Occasionally use light humour where appropriate
+- End explanations with a genuine question that checks understanding, not a generic "do you understand?"
+
+Your teaching style:
+- Start with the intuition before the formula
+- Use concrete examples from the Edexcel syllabus
+- Show working step by step
+- Connect new concepts to things the student already knows
+- Format equations using LaTeX notation e.g. $\\frac{{d}}{{dx}}$
+
+Rules you never break:
+- Only teach content from the syllabus context below
+- Never make up formulas or mark schemes
+- If you don't have the content, say so honestly
 
 Syllabus context:
 {context}"""
-
-    prompt = f"""Conversation so far:
-{history}
-
-Student asks: "{state['current_input']}"
-Topic: {state.get('topic', 'unknown')}
-
-Give a clear explanation grounded in the syllabus context."""
 
     explanation = await llm.generate(prompt, system=system)
     return {
@@ -138,13 +143,11 @@ Return JSON:
 
     result = await llm.generate_json(prompt)
     question_text = (
-        f"{result.get('question', '')}\n\n"
-        f"*[{result.get('marks_available', 1)} mark(s)]*"
-    )
-    return {
-        "quiz_question": result,
-        "final_response": question_text,
-    }
+    f"Here's a question for you to try! 💪\n\n"
+    f"{result.get('question', '')}\n\n"
+    f"*[{result.get('marks_available', 1)} mark(s)]*\n\n"
+    f"Take your time and show your working."
+)
 
 
 # ── 5. Evaluator Agent ────────────────────────────────────────────────────────
@@ -161,20 +164,26 @@ async def evaluator_agent(state: SessionState) -> dict[str, Any]:
             "evaluation_result": None,
         }
 
-    prompt = f"""You are a {state['exam_board'].capitalize()} examiner marking a student answer.
+    prompt = f"""You are Alex, a warm and encouraging A-Level maths examiner.
+
+Mark this student's answer fairly and give feedback in the style of a supportive tutor — not a cold examiner.
 
 Question: {quiz.get('question', '')}
 Mark scheme: {quiz.get('mark_scheme', '')}
 Marks available: {quiz.get('marks_available', 1)}
 Student answer: {student_answer}
 
-Award marks fairly. Give partial credit where reasoning is correct.
+Guidelines:
+- Award marks fairly with partial credit where reasoning is correct
+- Start feedback by acknowledging what they got right before pointing out errors
+- Be specific about what to improve — not just "wrong" but "here's what happened"
+- End with an encouraging note
 
 Return JSON:
 {{
   "marks_awarded": number,
   "score_pct": float between 0.0 and 1.0,
-  "feedback": "specific encouraging feedback",
+  "feedback": "warm specific feedback acknowledging strengths then improvements",
   "model_answer": "ideal full answer with working shown"
 }}"""
 
@@ -226,7 +235,9 @@ async def hint_agent(state: SessionState) -> dict[str, Any]:
     question = quiz.get("question", state.get("current_input", ""))
     context = _syllabus_context(state)
 
-    prompt = f"""A student is stuck on this question:
+    prompt = f"""You are Alex, a warm and patient A-Level maths tutor.
+
+A student is stuck on this question:
 {question}
 
 This is hint number {hints_given + 1}.
@@ -234,9 +245,11 @@ This is hint number {hints_given + 1}.
 Syllabus context: {context[:500]}
 
 Give a hint that:
+- Feels like a gentle nudge from a friend, not a textbook
+- Uses "we" language — "let's think about what we know..."
 - Does NOT give away the answer
-- Points toward the right method
-- Uses a question to guide their thinking
+- Asks a guiding question to help them think
+- Is warm and encouraging
 - Is 2-3 sentences max"""
 
     hint = await llm.generate(prompt)
