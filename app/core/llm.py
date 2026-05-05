@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import base64
@@ -5,7 +6,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 import httpx
 
 from app.core.config import settings
-
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,14 @@ class LLM:
             "Content-Type": "application/json",
         }
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
-    
+    def _get_tracer(self):
+        try:
+            from langsmith import traceable
+            return traceable
+        except Exception:
+            return lambda **kwargs: (lambda f: f)
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
     async def generate(self, prompt: str, system: str = "") -> str:
         messages = []
         if system:
@@ -41,6 +46,19 @@ class LLM:
             "stop": None,
         }
 
+        # Log to LangSmith manually
+        try:
+            from langsmith import Client
+            ls_client = Client()
+            run = ls_client.create_run(
+                name="llm.generate",
+                run_type="llm",
+                inputs={"messages": messages},
+                project_name=os.getenv("LANGSMITH_PROJECT", "ascend-tutor"),
+            )
+        except Exception:
+            run = None
+
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 f"{GROQ_BASE}/chat/completions",
@@ -50,11 +68,25 @@ class LLM:
 
         if response.status_code != 200:
             logger.error("LLM error %s: %s", response.status_code, response.text)
+            if run:
+                try:
+                    from langsmith import Client
+                    Client().update_run(run.id, error=response.text)
+                except Exception:
+                    pass
             raise LLMError(f"LLM request failed: {response.status_code}")
 
-        return response.json()["choices"][0]["message"]["content"]
-    
-   
+        content = response.json()["choices"][0]["message"]["content"]
+
+        if run:
+            try:
+                from langsmith import Client
+                Client().update_run(run.id, outputs={"content": content})
+            except Exception:
+                pass
+
+        return content
+
     async def generate_json(self, prompt: str, system: str = "") -> dict:
         json_system = (
             (system + "\n\n" if system else "")
@@ -71,20 +103,16 @@ class LLM:
                 raw = raw[4:]
         raw = raw.strip()
 
-        # Aggressively fix backslash issues before parsing
-        # Walk the string and fix any invalid JSON escape sequences
         fixed = []
         i = 0
         while i < len(raw):
             if raw[i] == '\\' and i + 1 < len(raw):
                 next_char = raw[i + 1]
-                # Valid JSON escapes: " \ / b f n r t u
                 if next_char in ('"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'):
                     fixed.append(raw[i])
                     fixed.append(raw[i + 1])
                     i += 2
                 else:
-                    # Invalid escape — double the backslash
                     fixed.append('\\\\')
                     i += 1
             else:
@@ -97,8 +125,7 @@ class LLM:
         except json.JSONDecodeError as e:
             logger.error("JSON parse failed. Raw output: %s", raw[:300])
             raise LLMError(f"LLM returned invalid JSON: {e}") from e
-        
-  
+
     async def vision(self, prompt: str, image_bytes: bytes, system: str = "") -> str:
         b64 = base64.b64encode(image_bytes).decode()
 
