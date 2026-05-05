@@ -127,3 +127,4 @@ zstandard==0.25.0
 redis
 qdrant-client
 langsmith
+sentence-transformers==5.4.1
