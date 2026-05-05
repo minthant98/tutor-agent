@@ -111,12 +111,19 @@ Rules you never break:
 Syllabus context:
 {context}"""
 
+    prompt = f"""Conversation so far:
+{history}
+
+Student asks: "{state['current_input']}"
+Topic: {state.get('topic', 'unknown')}
+
+Give a clear explanation grounded in the syllabus context."""
+
     explanation = await llm.generate(prompt, system=system)
     return {
         "explanation": explanation,
         "final_response": explanation,
     }
-
 
 # ── 4. Quiz Agent ─────────────────────────────────────────────────────────────
 
