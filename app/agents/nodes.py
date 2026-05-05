@@ -44,9 +44,14 @@ Intent definitions:
 - quiz: student wants practice questions
 - hint: student is stuck and wants a nudge
 - check_answer: student has written an answer and wants it marked
-- off_topic: not related to {state['subject']}
+- off_topic: completely unrelated to mathematics or academic study
 - greeting: hello, thanks, etc
 - unknown: cannot determine
+
+Important: Pure Mathematics topics include differentiation, integration, algebra, trigonometry, 
+sequences, series, arithmetic progressions, geometric progressions, vectors, proof, 
+binomial expansion, logarithms, exponentials, coordinate geometry, parametric equations,
+numerical methods. Classify these as explain or quiz, never off_topic.
 """
     result = await llm.generate_json(prompt)
     logger.info("Intent: %s | topic: %s", result.get("intent"), result.get("topic"))
@@ -302,11 +307,12 @@ async def adapt_agent(state: SessionState) -> dict[str, Any]:
 
     if action == "redirect_off_topic":
         subjects = {
-            "mathematics": "differentiation, integration, statistics",
-            "physics": "mechanics, electricity, waves",
-            "chemistry": "organic chemistry, energetics, equilibria",
-            "biology": "cell biology, genetics, ecology",
-        }
+    "mathematics": "differentiation, integration, algebra, trigonometry, sequences, vectors",
+    "pure_mathematics": "differentiation, integration, algebra, trigonometry, sequences, vectors, proof, binomial expansion",
+    "physics": "mechanics, electricity, waves",
+    "chemistry": "organic chemistry, energetics, equilibria",
+    "biology": "cell biology, genetics, ecology",
+}
         topics = subjects.get(state["subject"], "core syllabus topics")
         return {
             "final_response": (
