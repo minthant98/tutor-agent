@@ -1,3 +1,10 @@
+import os
+
+# Enable LangSmith tracing
+os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "false")
+os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY", "")
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "ascend-tutor")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
@@ -5,13 +12,9 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.sessions import router as sessions_router
 from app.api.v1.endpoints.admin import router as admin_router
 
-import os
+
 from langsmith import Client
 
-# Enable LangSmith tracing
-os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "false")
-os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY", "")
-os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "ascend-tutor")
 
 
 app = FastAPI(
