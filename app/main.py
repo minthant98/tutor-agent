@@ -1,9 +1,10 @@
 import os
 
 # Enable LangSmith tracing
-os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "false")
+os.environ["LANGCHAIN_TRACING"] = os.getenv("LANGCHAIN_TRACING", "false")
 os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY", "")
 os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "ascend-tutor")
+os.environ.setdefault("LANGSMITH_ENDPOINT", os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
