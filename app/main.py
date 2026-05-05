@@ -1,7 +1,3 @@
-# ── Tracing must be set up before ANY other imports ──────────
-from app.core.tracing import setup_tracing
-setup_tracing()
-
 import os
 
 from fastapi import FastAPI
