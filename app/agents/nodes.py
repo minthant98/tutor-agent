@@ -243,7 +243,7 @@ async def hint_agent(state: SessionState) -> dict[str, Any]:
             "rules_action": "show_worked_example",
         }
 
-    quiz = state.get("quiz_question", {})
+    quiz = state.get("quiz_question") or {}
     question = quiz.get("question", state.get("current_input", ""))
     context = _syllabus_context(state)
 
