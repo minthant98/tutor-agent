@@ -122,13 +122,36 @@ Syllabus context:
 Student asks: "{state['current_input']}"
 Topic: {state.get('topic', 'unknown')}
 
-Give a clear explanation grounded in the syllabus context."""
+Syllabus context:
+{context}
 
-    explanation = await llm.generate(prompt, system=system)
-    return {
-        "explanation": explanation,
-        "final_response": explanation,
-    }
+You MUST respond in this exact structure:
+
+**Understanding the problem**
+[1-2 sentences explaining what the question is asking and what concept applies]
+
+**Step-by-step solution**
+Step 1: [what you do]
+→ [the mathematical working]
+→ [why this step is valid]
+
+Step 2: [what you do]
+→ [the mathematical working]  
+→ [why this step is valid]
+
+[continue for all steps]
+
+**Key insight**
+[1 sentence on the most important thing to remember about this type of problem]
+
+**Check your understanding**
+[Ask ONE specific question that tests if the student understood the method, not just the answer]
+
+Rules:
+- Never skip steps
+- Always show the mathematical working using LaTeX
+- Always explain WHY each step is valid, not just WHAT you do
+- If there are multiple methods, mention the most common Edexcel approach first"""
 
 # ── 4. Quiz Agent ─────────────────────────────────────────────────────────────
 
@@ -165,38 +188,63 @@ Return JSON:
 # ── 5. Evaluator Agent ────────────────────────────────────────────────────────
 
 async def evaluator_agent(state: SessionState) -> dict[str, Any]:
-    quiz = state.get("quiz_question", {})
-    # Check student_answer first, then fall back to current_input
+    quiz = state.get("quiz_question") or {}
     student_answer = state.get("student_answer") or state.get("current_input", "")
 
     if not quiz:
-        # No quiz question — treat as explanation request
         return {
-            "final_response": "I don't have an active question for you. Would you like me to give you a practice question?",
+            "final_response": "I don't have an active question for you. Would you like a practice question?",
             "evaluation_result": None,
         }
 
+    # Try SymPy validation first
+    from app.core.math_validator import validate_answer
+    model_answer = quiz.get("mark_scheme", "")
+    sympy_result = validate_answer(student_answer, model_answer)
+
+    sympy_context = ""
+    if sympy_result["method"] == "sympy":
+        if sympy_result["is_correct"]:
+            sympy_context = "Note: SymPy confirmed the student's answer is mathematically equivalent to the correct answer."
+        else:
+            sympy_context = f"Note: SymPy detected a mathematical error. {sympy_result['reason']}"
+
     prompt = f"""You are Alex, a warm and encouraging A-Level maths examiner.
 
-Mark this student's answer fairly and give feedback in the style of a supportive tutor — not a cold examiner.
+Mark this student's answer fairly and give feedback in the style of a supportive tutor.
 
 Question: {quiz.get('question', '')}
 Mark scheme: {quiz.get('mark_scheme', '')}
 Marks available: {quiz.get('marks_available', 1)}
 Student answer: {student_answer}
 
-Guidelines:
-- Award marks fairly with partial credit where reasoning is correct
-- Start feedback by acknowledging what they got right before pointing out errors
-- Be specific about what to improve — not just "wrong" but "here's what happened"
-- End with an encouraging note
+{sympy_context}
+
+You MUST structure your feedback exactly like this:
+
+**What you got right**
+[specifically acknowledge correct steps or reasoning]
+
+**Step-by-step breakdown**
+Step 1: [description] — [mark awarded: yes/no] [reason]
+Step 2: [description] — [mark awarded: yes/no] [reason]
+[continue for all steps]
+
+**Where marks were lost** (if any)
+[specific explanation of what went wrong and why]
+
+**The complete solution**
+[show the full correct working step by step]
+
+**Remember for next time**
+[one specific tip for this type of question]
 
 Return JSON:
 {{
   "marks_awarded": number,
   "score_pct": float between 0.0 and 1.0,
-  "feedback": "warm specific feedback acknowledging strengths then improvements",
-  "model_answer": "ideal full answer with working shown"
+  "feedback": "the full structured feedback as described above",
+  "model_answer": "complete step by step solution"
 }}"""
 
     result = await llm.generate_json(prompt)
@@ -210,7 +258,7 @@ Return JSON:
     response = (
         f"**{marks_awarded}/{available} marks**\n\n"
         f"{feedback}\n\n"
-        f"**Model answer:**\n{model_answer}"
+        f"**Complete solution:**\n{model_answer}"
     )
 
     new_wrong = state.get("consecutive_wrong", 0)
