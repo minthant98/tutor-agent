@@ -27,6 +27,7 @@ app.add_middleware(
     "https://tutor-agent-production-d399.up.railway.app",
     "https://ascend-tutor-ai-agent.netlify.app",
     "https://minthant98.github.io",
+    "https://tutor-agent-sigma.vercel.app",
 ],
     allow_credentials=True,
     allow_methods=["*"],
