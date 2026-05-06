@@ -128,3 +128,4 @@ redis
 qdrant-client
 langsmith
 sentence-transformers==5.4.1
+sympy
