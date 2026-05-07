@@ -180,11 +180,15 @@ Return JSON:
 
     result = await llm.generate_json(prompt)
     question_text = (
-    f"Here's a question for you to try! 💪\n\n"
-    f"{result.get('question', '')}\n\n"
-    f"*[{result.get('marks_available', 1)} mark(s)]*\n\n"
-    f"Take your time and show your working."
-)
+        f"Here's a question for you to try! 💪\n\n"
+        f"{result.get('question', '')}\n\n"
+        f"*[{result.get('marks_available', 1)} mark(s)]*\n\n"
+        f"Take your time and show your working."
+    )
+    return {
+        "quiz_question": result,
+        "final_response": question_text,
+    }
 
 
 # ── 5. Evaluator Agent ────────────────────────────────────────────────────────
