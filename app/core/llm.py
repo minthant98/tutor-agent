@@ -71,6 +71,7 @@ class LLM:
                 raw = raw[4:]
         raw = raw.strip()
 
+        # Fix invalid escape sequences
         fixed = []
         i = 0
         while i < len(raw):
@@ -83,6 +84,9 @@ class LLM:
                 else:
                     fixed.append('\\\\')
                     i += 1
+            elif ord(raw[i]) < 32 and raw[i] not in ('\n', '\r', '\t'):
+                # Skip invalid control characters
+                i += 1
             else:
                 fixed.append(raw[i])
                 i += 1

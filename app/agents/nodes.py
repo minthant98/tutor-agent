@@ -226,31 +226,32 @@ Student answer: {student_answer}
 
 {sympy_context}
 
-You MUST structure your feedback exactly like this:
+You MUST structure your feedback exactly like this markdown:
 
-**What you got right**
+## What you got right
 [specifically acknowledge correct steps or reasoning]
 
-**Step-by-step breakdown**
-Step 1: [description] — [mark awarded: yes/no] [reason]
-Step 2: [description] — [mark awarded: yes/no] [reason]
-[continue for all steps]
+## Step-by-step breakdown
+- **Step 1:** [description] — ✅ mark awarded — [reason]
+- **Step 2:** [description] — ✅ mark awarded — [reason]
 
-**Where marks were lost** (if any)
-[specific explanation of what went wrong and why]
+## Where marks were lost
+[specific explanation or "None — full marks!"]
 
-**The complete solution**
-[show the full correct working step by step]
+## Complete solution
+[full working with LaTeX math]
 
-**Remember for next time**
-[one specific tip for this type of question]
+## Remember for next time
+[one specific tip]
 
-Return JSON:
+Use LaTeX for ALL mathematical expressions: $x^2$, $\\frac{{dy}}{{dx}}$, $\\int_0^2 x dx$
+
+Return ONLY a JSON object. No markdown fences. No newlines inside string values — use \\n for line breaks.
 {{
   "marks_awarded": number,
   "score_pct": float between 0.0 and 1.0,
-  "feedback": "the full structured feedback as described above",
-  "model_answer": "complete step by step solution"
+  "feedback": "markdown feedback on one line using \\n for breaks. Use LaTeX for math: $x^2$, $\\\\frac{{dy}}{{dx}}$",
+  "model_answer": "complete solution on one line using \\n for breaks with LaTeX math"
 }}"""
 
     result = await llm.generate_json(prompt)
@@ -264,7 +265,6 @@ Return JSON:
     response = (
         f"**{marks_awarded}/{available} marks**\n\n"
         f"{feedback}\n\n"
-        f"**Complete solution:**\n{model_answer}"
     )
 
     new_wrong = state.get("consecutive_wrong", 0)
