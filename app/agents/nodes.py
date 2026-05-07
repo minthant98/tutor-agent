@@ -85,7 +85,6 @@ async def retrieval_agent(state: SessionState) -> dict[str, Any]:
 
 
 # ── 3. Tutor Agent ────────────────────────────────────────────────────────────
-
 async def tutor_agent(state: SessionState) -> dict[str, Any]:
     context = _syllabus_context(state)
     history = _history_context(state)
@@ -122,9 +121,6 @@ Syllabus context:
 Student asks: "{state['current_input']}"
 Topic: {state.get('topic', 'unknown')}
 
-Syllabus context:
-{context}
-
 You MUST respond in this exact structure:
 
 **Understanding the problem**
@@ -136,7 +132,7 @@ Step 1: [what you do]
 → [why this step is valid]
 
 Step 2: [what you do]
-→ [the mathematical working]  
+→ [the mathematical working]
 → [why this step is valid]
 
 [continue for all steps]
@@ -152,6 +148,12 @@ Rules:
 - Always show the mathematical working using LaTeX
 - Always explain WHY each step is valid, not just WHAT you do
 - If there are multiple methods, mention the most common Edexcel approach first"""
+
+    explanation = await llm.generate(prompt, system=system)
+    return {
+        "explanation": explanation,
+        "final_response": explanation,
+    }
 
 # ── 4. Quiz Agent ─────────────────────────────────────────────────────────────
 
