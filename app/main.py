@@ -10,6 +10,9 @@ from app.api.v1.endpoints.admin import router as admin_router
 
 from langsmith import Client
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 
 app = FastAPI(
@@ -46,3 +49,21 @@ async def health():
 @app.get("/")
 async def root():
     return {"message": "Tutor Agent API is running"}
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Starting Ascend Tutor API")
+    import asyncio
+    from app.rag.qdrant_retriever import preload_models
+    await asyncio.get_event_loop().run_in_executor(None, preload_models)
+    yield
+    logger.info("Shutting down")
+
+app = FastAPI(
+    title="AI Tutor Agent",
+    version="0.1.0",
+    docs_url="/docs" if not settings.is_production else None,
+    lifespan=lifespan,
+)
