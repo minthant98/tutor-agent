@@ -39,6 +39,11 @@ async def process_message(
 
             eval_result = await evaluator_agent(state)
             state.update(eval_result)
+            logger.info("After eval — score: %s, consecutive_wrong: %s, consecutive_correct: %s",
+                state.get('evaluation_result', {}).get('score_pct'),
+                state.get('consecutive_wrong'),
+                state.get('consecutive_correct')
+)
 
             rules_result = rules_engine(state)
             state.update(rules_result)
