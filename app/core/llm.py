@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import base64
+from typing import AsyncGenerator
 from tenacity import retry, stop_after_attempt, wait_exponential
 from langsmith import traceable
 import httpx
@@ -136,6 +137,63 @@ class LLM:
             raise LLMError(f"Vision request failed: {response.status_code}")
 
         return response.json()["choices"][0]["message"]["content"]
+
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
+    async def chat_with_tools(self, messages: list[dict], tools: list[dict]) -> dict:
+        """Non-streaming call with tool support. Returns the full assistant message dict."""
+        payload = {
+            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+            "temperature": 0.3,
+            "max_completion_tokens": 512,
+            "top_p": 1,
+        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{GROQ_BASE}/chat/completions",
+                headers=self._headers,
+                json=payload,
+            )
+        if response.status_code != 200:
+            logger.error("Tool call error %s: %s", response.status_code, response.text)
+            raise LLMError(f"Tool call failed: {response.status_code}")
+        return response.json()["choices"][0]["message"]
+
+    async def stream(self, messages: list[dict]) -> AsyncGenerator[str, None]:
+        """Stream response tokens. messages must include system message if needed."""
+        payload = {
+            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+            "messages": messages,
+            "temperature": 0.3,
+            "max_completion_tokens": 2048,
+            "top_p": 1,
+            "stream": True,
+        }
+        async with httpx.AsyncClient(timeout=60) as client:
+            async with client.stream(
+                "POST",
+                f"{GROQ_BASE}/chat/completions",
+                headers=self._headers,
+                json=payload,
+            ) as response:
+                if response.status_code != 200:
+                    raise LLMError(f"Stream request failed: {response.status_code}")
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[6:]
+                    if data == "[DONE]":
+                        return
+                    try:
+                        chunk = json.loads(data)
+                        token = chunk["choices"][0]["delta"].get("content")
+                        if token:
+                            yield token
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        continue
 
 
 llm = LLM()

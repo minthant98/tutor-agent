@@ -1,32 +1,32 @@
 from pydantic import BaseModel, Field
-from typing import Literal, Any
+from typing import Literal
 import uuid
 from datetime import datetime
 
 
 class StartSessionRequest(BaseModel):
     subject: str = Field(description="mathematics, physics, chemistry, biology")
-    mode: Literal["explain", "quiz", "review", "exam_practice"] = "explain"
+    exam_date: str | None = Field(None, description="ISO date: 2026-06-15")
     topic: str | None = None
 
 
 class StartSessionResponse(BaseModel):
     session_id: str
     message: str
+    is_new_student: bool = False
 
 
 class MessageRequest(BaseModel):
     session_id: str
     message: str = Field(max_length=4000)
+    signal: Literal["explain", "guide"] | None = None
 
 
 class MessageResponse(BaseModel):
     session_id: str
     response: str
-    intent: str | None
-    topic: str | None
-    sources_used: int
-    rules_action: str | None
+    session_phase: str
+    weak_topics: list[str]
     turn_count: int
 
 

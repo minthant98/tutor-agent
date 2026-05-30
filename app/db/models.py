@@ -1,9 +1,9 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, Float,
-    ForeignKey, Integer, String, Text, func,
+    JSON, Boolean, Date, DateTime, Float,
+    ForeignKey, Integer, String, func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -22,12 +22,16 @@ class Student(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Academic profile
-    exam_board: Mapped[str] = mapped_column(String(50), default="cambridge")
+    exam_board: Mapped[str] = mapped_column(String(50), default="edexcel")
     exam_level: Mapped[str] = mapped_column(String(20), default="a_level")
     subjects: Mapped[list] = mapped_column(JSON, default=list)
+    exam_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Subscription
     subscription_tier: Mapped[str] = mapped_column(String(20), default="free")
+    subscription_status: Mapped[str] = mapped_column(String(20), default="active")
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

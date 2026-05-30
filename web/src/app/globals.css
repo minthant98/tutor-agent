@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --navy: #0F172A;
+  --navy-800: #1E293B;
+  --navy-700: #334155;
+  --blue: #3B82F6;
+  --blue-dark: #2563EB;
+  --green: #22C55E;
+  --purple: #7C3AED;
+  --bg: #FAFBFC;
+  --bg-card: #FFFFFF;
+  --border: #E2E8F0;
+  --text-primary: #0F172A;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+}
+
+@theme inline {
+  --color-navy: var(--navy);
+  --color-ascend-blue: var(--blue);
+  --color-ascend-green: var(--green);
+  --color-ascend-purple: var(--purple);
+  --color-bg: var(--bg);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+/* KaTeX sizing */
+.katex {
+  font-size: 1.05em;
+}
+.katex-display {
+  margin: 0.75em 0;
+}

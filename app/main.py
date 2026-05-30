@@ -2,10 +2,23 @@ import os
 import logging
 from contextlib import asynccontextmanager
 
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.app_env,
+        integrations=[FastApiIntegration(), SqlalchemyIntegration()],
+        traces_sample_rate=0.2,
+        send_default_pii=False,
+    )
 from app.api.v1.endpoints.auth import router as auth_router
+from app.api.v1.endpoints.billing import router as billing_router
 from app.api.v1.endpoints.sessions import router as sessions_router
 from app.api.v1.endpoints.admin import router as admin_router
 
@@ -46,13 +59,15 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix=settings.api_v1_prefix)
+app.include_router(billing_router, prefix=settings.api_v1_prefix)
 app.include_router(sessions_router, prefix=settings.api_v1_prefix)
 app.include_router(admin_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "env": settings.app_env}
+    return {"status": "ok", "env": settings.app_env, "sentry": bool(settings.sentry_dsn)}
+
 
 
 @app.get("/")
