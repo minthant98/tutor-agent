@@ -20,15 +20,29 @@ class Settings(BaseSettings):
     chroma_port: int = 8001
 
     # Defaults
-    default_subject: str = "pure_mathematics"
+    default_subject: str = "mathematics"
     default_exam_board: str = "edexcel"
 
     # Auth
     access_token_expire_minutes: int = 60
-    
+
     # Qdrant
     qdrant_url: str = ""
     qdrant_api_key: str = ""
+
+    # Stripe (set in production .env)
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_pro_price_id: str = ""
+
+    # Frontend URL (used for Stripe redirect URLs)
+    frontend_url: str = "https://ascend-tutor-ai-agent.netlify.app"
+
+    # Rate limiting
+    free_daily_message_limit: int = 20
+
+    # Sentry
+    sentry_dsn: str = ""
 
     @property
     def is_production(self) -> bool:

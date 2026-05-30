@@ -22,9 +22,13 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     name: str = Field(min_length=1, max_length=255)
     password: str = Field(min_length=8)
-    exam_board: str = "edexcel"
-    exam_level: str = "a_level"
-    subjects: list[str] = ["pure_mathematics"]
+
+
+class ProfileUpdateRequest(BaseModel):
+    subjects: list[str] | None = None
+    exam_board: str | None = None
+    exam_level: str | None = None
+    exam_date: str | None = None  # ISO format: "2026-06-15"
 
 
 class TokenResponse(BaseModel):
@@ -41,6 +45,9 @@ class StudentResponse(BaseModel):
     exam_level: str
     subjects: list[str]
     subscription_tier: str
+    subscription_status: str
+    exam_date: str | None
+    onboarding_complete: bool
 
     model_config = {"from_attributes": True}
 
@@ -54,6 +61,9 @@ class StudentResponse(BaseModel):
             exam_level=student.exam_level,
             subjects=student.subjects or [],
             subscription_tier=student.subscription_tier,
+            subscription_status=student.subscription_status,
+            exam_date=student.exam_date.isoformat() if student.exam_date else None,
+            onboarding_complete=student.exam_date is not None,
         )
 
 
@@ -111,10 +121,11 @@ async def register(
         email=body.email,
         name=body.name,
         hashed_password=hash_password(body.password),
-        exam_board=body.exam_board,
-        exam_level=body.exam_level,
-        subjects=body.subjects,
+        exam_board="edexcel",
+        exam_level="a_level",
+        subjects=[],
         subscription_tier="free",
+        subscription_status="active",
     )
     db.add(student)
     await db.flush()
@@ -156,4 +167,34 @@ async def login(
 
 @router.get("/me", response_model=StudentResponse)
 async def me(student: Student = Depends(get_current_student)):
+    return StudentResponse.from_student(student)
+
+
+# ── PATCH /auth/profile ───────────────────────────────────────────────────────
+
+@router.patch("/profile", response_model=StudentResponse)
+async def update_profile(
+    body: ProfileUpdateRequest,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save onboarding data: subjects, exam board, exam date."""
+    from datetime import date
+
+    if body.subjects is not None:
+        student.subjects = body.subjects
+    if body.exam_board is not None:
+        student.exam_board = body.exam_board
+    if body.exam_level is not None:
+        student.exam_level = body.exam_level
+    if body.exam_date is not None:
+        try:
+            student.exam_date = date.fromisoformat(body.exam_date)
+        except ValueError:
+            from fastapi import HTTPException
+            raise HTTPException(400, detail="exam_date must be ISO format: YYYY-MM-DD")
+
+    await db.flush()
+    await db.commit()
+    logger.info("Profile updated for student %s", student.id)
     return StudentResponse.from_student(student)

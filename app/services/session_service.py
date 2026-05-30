@@ -1,137 +1,83 @@
 import logging
 from datetime import datetime, timezone
+from typing import AsyncGenerator, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from app.agents.tutor_agent import run_agent, Signal
 from app.db.models import MasteryState, TutorSession
-from app.workflows.graph import tutor_graph
 from app.workflows.state import SessionState
 
 logger = logging.getLogger(__name__)
 
+# Advance phase at these turn counts
+_PHASE_SCHEDULE: dict[int, str] = {
+    0: "diagnostic",
+    2: "warmup",
+    4: "main",
+}
 
-async def process_message(
+
+def _advance_phase(state: SessionState) -> None:
+    turn = state.get("turn_count", 0)
+    new_phase = _PHASE_SCHEDULE.get(turn)
+    if new_phase and state.get("session_phase") != new_phase:
+        state["session_phase"] = new_phase
+        logger.info("Phase → %s (turn %d)", new_phase, turn)
+
+
+async def stream_response(
     db: AsyncSession,
     db_session: TutorSession,
     state: SessionState,
     student_message: str,
-) -> tuple[str, SessionState]:
-
+    signal: Signal = None,
+) -> AsyncGenerator[str, None]:
+    """
+    Run one agent turn. Yields response tokens for SSE streaming.
+    Handles all state mutation, DB mastery sync, and session persistence
+    after the final token is yielded.
+    """
     state["current_input"] = student_message
-    state["current_input_type"] = "text"
     state["conversation_history"].append({
         "role": "student",
         "content": student_message,
         "metadata": {"turn": state.get("turn_count", 0)},
     })
 
-    # ── SHORT CIRCUIT: if active quiz, evaluate directly ──────────
-    if state.get("quiz_question"):
-        from app.agents.nodes import evaluator_agent, rules_engine, adapt_agent, intent_agent
+    _advance_phase(state)
 
-        intent_result = await intent_agent(state)
-        detected_intent = intent_result.get("intent", "unknown")
+    response_parts: list[str] = []
+    async for token in run_agent(state, signal):
+        response_parts.append(token)
+        yield token
 
-        if detected_intent not in ("explain", "quiz", "off_topic", "greeting"):
-            state["student_answer"] = student_message
-            state.update(intent_result)
-
-            eval_result = await evaluator_agent(state)
-            state.update(eval_result)
-            logger.info("After eval — score: %s, consecutive_wrong: %s, consecutive_correct: %s",
-                state.get('evaluation_result', {}).get('score_pct'),
-                state.get('consecutive_wrong'),
-                state.get('consecutive_correct')
-)
-
-            rules_result = rules_engine(state)
-            state.update(rules_result)
-
-            adapt_result = await adapt_agent(state)
-            state.update(adapt_result)
-
-            response = state.get("final_response") or "Could you rephrase that?"
-
-            state["conversation_history"].append({
-                "role": "tutor",
-                "content": response,
-                "metadata": {
-                    "intent": "check_answer",
-                    "topic": state.get("topic"),
-                    "rules_action": state.get("rules_action"),
-                },
-            })
-
-            state["quiz_question"] = None
-            state["student_answer"] = None
-            state["turn_count"] = state.get("turn_count", 0) + 1
-
-            db_session.messages = state.get("conversation_history", [])
-            db_session.topic = state.get("topic")
-            await db.flush()
-
-            if state.get("evaluation_result"):
-                await _update_mastery(db, state)
-
-            return response, state
-
-        # Student wants something else — clear quiz and fall through
-        state["quiz_question"] = None
-
-    # ── NORMAL FLOW: run the full graph ───────────────────────────
-    import copy
-    state_copy = copy.deepcopy(state)
-
-    try:
-        result: SessionState = await tutor_graph.ainvoke(state_copy)
-    except Exception as e:
-        logger.error("Graph error: %s", e, exc_info=True)
-        return "Sorry, I ran into an error. Please try again.", state
-
-    response = result.get("final_response") or "Could you rephrase that?"
-
-    result["conversation_history"].append({
+    response_text = "".join(response_parts)
+    state["conversation_history"].append({
         "role": "tutor",
-        "content": response,
-        "metadata": {
-            "intent": result.get("intent"),
-            "topic": result.get("topic"),
-            "rules_action": result.get("rules_action"),
-        },
+        "content": response_text,
+        "metadata": {"turn": state.get("turn_count", 0)},
     })
+    state["turn_count"] = state.get("turn_count", 0) + 1
 
-    keys_to_preserve = [
-        "weak_topics", "mastery_scores", "hints_given",
-        "consecutive_wrong", "consecutive_correct",
-        "mode", "exam_board", "exam_level", "subscription_tier",
-    ]
-    for key in keys_to_preserve:
-        if not result.get(key) and state.get(key):
-            result[key] = state[key]
+    # Sync mastery to DB if an evaluation happened this turn
+    if state.get("pending_mastery"):
+        await _update_mastery(db, state)
+        state["pending_mastery"] = None
 
-    if result.get("quiz_question"):
-        pass
-    elif state.get("quiz_question"):
-        result["quiz_question"] = state["quiz_question"]
-
-    db_session.messages = result.get("conversation_history", [])
-    db_session.topic = result.get("topic")
+    db_session.messages = state["conversation_history"]
+    db_session.topic = state.get("session_goal")
     await db.flush()
-
-    if result.get("evaluation_result"):
-        await _update_mastery(db, result)
-
-    return response, result
 
 
 async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
-    eval_result = state.get("evaluation_result")
-    topic = state.get("topic")
-    if not eval_result or not topic:
+    pending = state.get("pending_mastery")
+    if not pending:
         return
 
-    score = float(eval_result.get("score_pct") or 0.0)
+    topic = pending["topic"]
+    score = float(pending["score"])
     student_id = state["student_id"]
 
     stmt = select(MasteryState).where(
@@ -155,15 +101,14 @@ async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
         db.add(mastery)
 
     current_score = float(mastery.mastery_score or 0.0)
-    current_attempts = int(mastery.total_attempts or 0)
     current_streak = int(mastery.correct_streak or 0)
 
     alpha = 0.3
     mastery.mastery_score = alpha * score + (1 - alpha) * current_score
-    mastery.total_attempts = current_attempts + 1
+    mastery.total_attempts = int(mastery.total_attempts or 0) + 1
     mastery.last_reviewed_at = datetime.now(timezone.utc)
     mastery.correct_streak = current_streak + 1 if score >= 0.6 else 0
     mastery.is_weak = mastery.mastery_score < 0.5
 
     await db.flush()
-    logger.info("Mastery updated: topic=%s score=%.2f", topic, mastery.mastery_score)
+    logger.info("Mastery: topic=%s score=%.2f ema=%.2f", topic, score, mastery.mastery_score)

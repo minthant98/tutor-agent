@@ -167,10 +167,7 @@ def _clean_expression(expr: str) -> str:
     expr = expr.replace("×", "*")
     expr = expr.replace("÷", "/")
 
-    # Remove common words
-    for word in ["therefore", "so", "thus", "hence", "=", "C"]:
-        if word in ["C"]:  # Keep C as constant
-            pass
-        expr = expr.strip()
+    for word in ["therefore", "so", "thus", "hence"]:
+        expr = expr.replace(word, "").strip()
 
     return expr.strip()

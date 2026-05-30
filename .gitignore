@@ -3,6 +3,9 @@ venv/
 
 # Environment variables
 .env
+.env.local
+web/.env.local
+web/.next/
 
 # Python cache
 __pycache__/

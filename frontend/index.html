@@ -328,7 +328,9 @@
 </div>
 
 <script>
-const API = "https://tutor-agent-production-d399.up.railway.app/api/v1";
+const API = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+  ? "http://localhost:8000/api/v1"
+  : "https://tutor-agent-production-d399.up.railway.app/api/v1";
 let token = localStorage.getItem("token");
 let sessionId = null;
 let studentName = "";
