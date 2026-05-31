@@ -11,11 +11,12 @@ from app.workflows.state import SessionState
 
 logger = logging.getLogger(__name__)
 
-# Advance phase at these turn counts
+# Advance phase at these turn counts (turn = number of student messages sent so far)
 _PHASE_SCHEDULE: dict[int, str] = {
-    0: "diagnostic",
-    2: "warmup",
-    4: "main",
+    0: "intro",       # Alex: hi + what do you want to work on?
+    1: "diagnostic",  # Alex: acknowledge topic, calibration question
+    3: "warmup",      # Alex: easy question on their topic
+    5: "main",        # Alex: full practice at appropriate difficulty
 }
 
 
@@ -45,6 +46,10 @@ async def stream_response(
         "content": student_message,
         "metadata": {"turn": state.get("turn_count", 0)},
     })
+
+    # Capture what the student wants to work on from their very first reply
+    if state.get("turn_count", 0) == 0 and not state.get("session_goal"):
+        state["session_goal"] = student_message[:300]
 
     _advance_phase(state)
 

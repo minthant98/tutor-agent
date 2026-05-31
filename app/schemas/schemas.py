@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import Literal
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
 
 class StartSessionRequest(BaseModel):
@@ -52,3 +52,16 @@ class ProgressResponse(BaseModel):
     weak_topics: list[TopicMastery]
     strong_topics: list[TopicMastery]
     total_sessions: int
+
+
+class StudyPlanWeek(BaseModel):
+    week: int
+    topics: list[str]
+    focus: str
+
+
+class StudyPlanResponse(BaseModel):
+    subject: str
+    weeks_remaining: int
+    plan: list[StudyPlanWeek]
+    generated_at: datetime

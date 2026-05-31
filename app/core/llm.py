@@ -1,17 +1,24 @@
-import os
 import json
 import logging
 import base64
 from typing import AsyncGenerator
-from tenacity import retry, stop_after_attempt, wait_exponential
 from langsmith import traceable
 import httpx
+
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 GROQ_BASE = "https://api.groq.com/openai/v1"
+
+# Each model has its own rate-limit bucket on Groq.
+# On 429, we fall through to the next one immediately.
+_MODELS = [
+    "meta-llama/llama-4-scout-17b-16e-instruct",
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+]
 
 
 class LLMError(Exception):
@@ -25,35 +32,50 @@ class LLM:
             "Content-Type": "application/json",
         }
 
+    async def _post(self, payload: dict, timeout: int = 30) -> dict:
+        """Try each model in order. Returns parsed response JSON."""
+        last_error: Exception | None = None
+        for model in _MODELS:
+            payload["model"] = model
+            try:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        f"{GROQ_BASE}/chat/completions",
+                        headers=self._headers,
+                        json=payload,
+                    )
+                if response.status_code == 200:
+                    if model != _MODELS[0]:
+                        logger.info("Fallback model used: %s", model)
+                    return response.json()
+                if response.status_code == 429:
+                    logger.warning("Rate limited on %s, trying next model", model)
+                    last_error = LLMError(f"Rate limited: {model}")
+                    continue
+                logger.error("LLM error %s on %s: %s", response.status_code, model, response.text[:200])
+                last_error = LLMError(f"LLM request failed: {response.status_code}")
+                continue
+            except httpx.TimeoutException:
+                logger.warning("Timeout on %s, trying next model", model)
+                last_error = LLMError(f"Timeout: {model}")
+                continue
+        raise last_error or LLMError("All models failed")
+
     @traceable(name="llm.generate", run_type="llm")
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
     async def generate(self, prompt: str, system: str = "") -> str:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        payload = {
-            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        data = await self._post({
             "messages": messages,
             "temperature": 0.2,
             "max_completion_tokens": 2048,
             "top_p": 1,
             "stop": None,
-        }
-
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                f"{GROQ_BASE}/chat/completions",
-                headers=self._headers,
-                json=payload,
-            )
-
-        if response.status_code != 200:
-            logger.error("LLM error %s: %s", response.status_code, response.text)
-            raise LLMError(f"LLM request failed: {response.status_code}")
-
-        return response.json()["choices"][0]["message"]["content"]
+        })
+        return data["choices"][0]["message"]["content"]
 
     @traceable(name="llm.generate_json", run_type="llm")
     async def generate_json(self, prompt: str, system: str = "") -> dict:
@@ -139,61 +161,65 @@ class LLM:
         return response.json()["choices"][0]["message"]["content"]
 
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10))
     async def chat_with_tools(self, messages: list[dict], tools: list[dict]) -> dict:
         """Non-streaming call with tool support. Returns the full assistant message dict."""
-        payload = {
-            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        data = await self._post({
             "messages": messages,
             "tools": tools,
             "tool_choice": "auto",
             "temperature": 0.3,
             "max_completion_tokens": 512,
             "top_p": 1,
-        }
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                f"{GROQ_BASE}/chat/completions",
-                headers=self._headers,
-                json=payload,
-            )
-        if response.status_code != 200:
-            logger.error("Tool call error %s: %s", response.status_code, response.text)
-            raise LLMError(f"Tool call failed: {response.status_code}")
-        return response.json()["choices"][0]["message"]
+        })
+        return data["choices"][0]["message"]
 
     async def stream(self, messages: list[dict]) -> AsyncGenerator[str, None]:
-        """Stream response tokens. messages must include system message if needed."""
+        """Stream response tokens, falling back across models on 429 or timeout."""
         payload = {
-            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
             "messages": messages,
             "temperature": 0.3,
             "max_completion_tokens": 2048,
             "top_p": 1,
             "stream": True,
         }
-        async with httpx.AsyncClient(timeout=60) as client:
-            async with client.stream(
-                "POST",
-                f"{GROQ_BASE}/chat/completions",
-                headers=self._headers,
-                json=payload,
-            ) as response:
-                if response.status_code != 200:
-                    raise LLMError(f"Stream request failed: {response.status_code}")
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    data = line[6:]
-                    if data == "[DONE]":
-                        return
-                    try:
-                        chunk = json.loads(data)
-                        token = chunk["choices"][0]["delta"].get("content")
-                        if token:
-                            yield token
-                    except (json.JSONDecodeError, KeyError, IndexError):
-                        continue
+        last_error: Exception | None = None
+        for model in _MODELS:
+            payload["model"] = model
+            try:
+                async with httpx.AsyncClient(timeout=60) as client:
+                    async with client.stream(
+                        "POST",
+                        f"{GROQ_BASE}/chat/completions",
+                        headers=self._headers,
+                        json=payload,
+                    ) as response:
+                        if response.status_code == 429:
+                            logger.warning("Stream rate limited on %s, trying next model", model)
+                            last_error = LLMError(f"Rate limited: {model}")
+                            continue
+                        if response.status_code != 200:
+                            raise LLMError(f"Stream request failed: {response.status_code}")
+                        if model != _MODELS[0]:
+                            logger.info("Stream fallback model used: %s", model)
+                        async for line in response.aiter_lines():
+                            if not line.startswith("data: "):
+                                continue
+                            data = line[6:]
+                            if data == "[DONE]":
+                                return
+                            try:
+                                chunk = json.loads(data)
+                                token = chunk["choices"][0]["delta"].get("content")
+                                if token:
+                                    yield token
+                            except (json.JSONDecodeError, KeyError, IndexError):
+                                continue
+                        return  # completed successfully
+            except httpx.TimeoutException:
+                logger.warning("Stream timeout on %s, trying next model", model)
+                last_error = LLMError(f"Timeout: {model}")
+                continue
+        raise last_error or LLMError("All models failed")
 
 
 llm = LLM()

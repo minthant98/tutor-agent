@@ -10,7 +10,7 @@ TOOL_SCHEMAS = [
         "function": {
             "name": "search_syllabus",
             "description": (
-                "Search Edexcel syllabus content, past papers, and mark schemes for relevant material. "
+                "Search syllabus content, past papers, and mark schemes for relevant material. "
                 "Always call this before explaining any concept or topic to the student."
             ),
             "parameters": {

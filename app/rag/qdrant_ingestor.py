@@ -10,7 +10,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "tutor_edexcel_a_level_pure_mathematics"
+COLLECTION_NAME = "tutor_syllabus"
 VECTOR_SIZE = 384  # all-MiniLM-L6-v2 output size
 
 
@@ -18,6 +18,7 @@ def get_qdrant_client() -> QdrantClient:
     return QdrantClient(
         url=settings.qdrant_url,
         api_key=settings.qdrant_api_key,
+        timeout=60,
     )
 
 
@@ -61,15 +62,20 @@ class QdrantIngestor:
                 payload={**metadata, "text": chunk},
             ))
 
-        # Upload in batches of 100
-        batch_size = 100
+        import time
+        batch_size = 10
         added = 0
         for i in range(0, len(points), batch_size):
             batch = points[i:i + batch_size]
-            self.client.upsert(
-                collection_name=COLLECTION_NAME,
-                points=batch,
-            )
-            added += len(batch)
+            for attempt in range(4):
+                try:
+                    self.client.upsert(collection_name=COLLECTION_NAME, points=batch)
+                    added += len(batch)
+                    break
+                except Exception as e:
+                    if attempt == 3:
+                        raise
+                    time.sleep(3 * (attempt + 1))
+            time.sleep(0.3)  # throttle to avoid free tier rate limits
 
         return added

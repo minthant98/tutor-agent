@@ -1,5 +1,5 @@
 import { getToken } from './auth'
-import type { MessageResponse, ProgressResponse, Session, Signal, Student } from './types'
+import type { MessageResponse, ProgressResponse, Session, Signal, Student, StudyPlanResponse } from './types'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1'
 
@@ -92,6 +92,16 @@ export async function getProgress(subject: string): Promise<ProgressResponse> {
   return request(`/sessions/progress?subject=${subject}`)
 }
 
+// ── Study Plan ────────────────────────────────────────────────────────────────
+
+export async function getStudyPlan(subject: string): Promise<StudyPlanResponse> {
+  return request(`/study-plan?subject=${subject}`)
+}
+
+export async function regenerateStudyPlan(subject: string): Promise<StudyPlanResponse> {
+  return request(`/study-plan/regenerate?subject=${subject}`, { method: 'POST' })
+}
+
 // ── Billing ───────────────────────────────────────────────────────────────────
 
 export async function createCheckout(): Promise<{ url: string }> {
@@ -124,6 +134,10 @@ export function streamMessage(
     body: JSON.stringify({ session_id: sessionId, message, signal }),
     signal: controller.signal,
   }).then(async (res) => {
+    if (res.status === 429) {
+      onError('__RATE_LIMIT__')
+      return
+    }
     if (!res.ok || !res.body) {
       onError('Connection failed. Please try again.')
       return
