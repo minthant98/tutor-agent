@@ -11,13 +11,15 @@ interface ChatMessage extends Message {
 }
 
 const PHASE_LABEL: Record<string, string> = {
-  diagnostic: 'Getting started',
+  intro: 'Getting started',
+  diagnostic: 'Calibrating',
   warmup: 'Warm-up',
   main: 'Practice',
   consolidation: 'Wrapping up',
 }
 
 const PHASE_COLOR: Record<string, string> = {
+  intro: '#94A3B8',
   diagnostic: '#94A3B8',
   warmup: '#F59E0B',
   main: '#3B82F6',
@@ -47,8 +49,8 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'Explain simpler', signal: 'explain' as Signal, icon: '📖' },
-  { label: 'Give a hint', signal: 'guide' as Signal, icon: '💡' },
+  { label: 'Explain simpler', signal: 'explain' as Signal },
+  { label: 'Give a hint', signal: 'guide' as Signal },
   { label: 'Show an example', signal: null, preset: "Can you show me a worked example?" },
   { label: 'Exam-style question', signal: null, preset: "Can you give me an exam-style question on this?" },
 ]
@@ -196,7 +198,7 @@ export default function SessionPage() {
         {!streaming && messages.length > 1 && (
           <div className="px-5 pb-3">
             <div className="max-w-2xl mx-auto flex flex-wrap gap-2">
-              {QUICK_ACTIONS.map(({ label, signal, preset, icon }) => (
+              {QUICK_ACTIONS.map(({ label, signal, preset }) => (
                 <button
                   key={label}
                   onClick={() => {
@@ -209,7 +211,7 @@ export default function SessionPage() {
                   }}
                   className="text-xs border border-slate-200 bg-white text-slate-600 px-3 py-1.5 rounded-full hover:border-slate-300 hover:bg-slate-50 transition-colors"
                 >
-                  {icon} {label}
+                  {label}
                 </button>
               ))}
             </div>

@@ -12,6 +12,7 @@ from app.core.session_store import delete_session, load_session, save_session
 from app.db.database import get_db
 from app.db.models import MasteryState, Student, TutorSession
 from app.schemas.schemas import (
+    ActiveSessionResponse,
     EndSessionResponse,
     MessageRequest,
     MessageResponse,
@@ -228,6 +229,95 @@ async def end_session(
             f"Great session! You completed {turns} turns. "
             + (f"Topics to review: {', '.join(weak)}." if weak else "Keep it up!")
         ),
+    )
+
+
+# ── GET /sessions/active ─────────────────────────────────────────────────────
+
+@router.get("/active", response_model=ActiveSessionResponse | None)
+async def get_active_session(
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the most recent unended session, or null if none."""
+    result = await db.execute(
+        select(TutorSession)
+        .where(TutorSession.student_id == student.id, TutorSession.ended_at.is_(None))
+        .order_by(TutorSession.started_at.desc())
+        .limit(1)
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        return None
+
+    messages = session.messages or []
+    tutor_messages = [m for m in messages if m.get("role") == "tutor"]
+    last_message = tutor_messages[-1]["content"][:120] if tutor_messages else None
+
+    return ActiveSessionResponse(
+        session_id=str(session.id),
+        subject=session.subject,
+        topic=session.topic,
+        started_at=session.started_at,
+        message_count=len([m for m in messages if m.get("role") == "student"]),
+        last_message=last_message,
+    )
+
+
+# ── POST /sessions/resume ─────────────────────────────────────────────────────
+
+@router.post("/resume/{session_id}", response_model=StartSessionResponse)
+async def resume_session(
+    session_id: str,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rebuild Redis state from DB and return the last tutor message to resume from."""
+    result = await db.execute(
+        select(TutorSession).where(TutorSession.id == session_id)
+    )
+    db_session = result.scalar_one_or_none()
+    if not db_session or str(db_session.student_id) != str(student.id):
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    messages = db_session.messages or []
+    weak_topics = await _load_weak_topics(db, str(student.id), db_session.subject)
+    turn_count = len([m for m in messages if m.get("role") == "student"])
+
+    # Determine phase from turn count
+    if turn_count >= 4:
+        phase = "main"
+    elif turn_count >= 2:
+        phase = "warmup"
+    elif turn_count >= 1:
+        phase = "diagnostic"
+    else:
+        phase = "intro"
+
+    state = initial_state(
+        student_id=str(student.id),
+        subject=db_session.subject,
+        exam_board=student.exam_board,
+        exam_level=student.exam_level,
+        subscription_tier=student.subscription_tier,
+        exam_date=str(student.exam_date) if student.exam_date else None,
+        weak_topics=weak_topics,
+    )
+    state["session_id"] = session_id
+    state["conversation_history"] = messages
+    state["turn_count"] = turn_count
+    state["session_phase"] = phase
+    state["session_goal"] = db_session.topic
+
+    save_session(state)
+
+    tutor_messages = [m for m in messages if m.get("role") == "tutor"]
+    last_message = tutor_messages[-1]["content"] if tutor_messages else "Welcome back! Where were we?"
+
+    return StartSessionResponse(
+        session_id=session_id,
+        message=last_message,
+        is_new_student=False,
     )
 
 

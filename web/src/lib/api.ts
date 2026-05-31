@@ -1,5 +1,5 @@
 import { getToken } from './auth'
-import type { MessageResponse, ProgressResponse, Session, Signal, Student, StudyPlanResponse } from './types'
+import type { ActiveSession, MessageResponse, ProgressResponse, Session, Signal, Student, StudyPlanResponse } from './types'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1'
 
@@ -86,6 +86,14 @@ export async function sendMessage(
 
 export async function endSession(sessionId: string) {
   return request(`/sessions/end?session_id=${sessionId}`, { method: 'POST' })
+}
+
+export async function getActiveSession(): Promise<ActiveSession | null> {
+  return request('/sessions/active')
+}
+
+export async function resumeSession(sessionId: string): Promise<Session> {
+  return request(`/sessions/resume/${sessionId}`, { method: 'POST' })
 }
 
 export async function getProgress(subject: string): Promise<ProgressResponse> {
