@@ -11,21 +11,23 @@ from app.workflows.state import SessionState
 
 logger = logging.getLogger(__name__)
 
-# Advance phase at these turn counts (turn = number of student messages sent so far)
+# Phase advances AFTER Alex responds, keyed on the completed turn count.
+# Turn count = number of full student+tutor exchanges completed.
+# e.g. after turn 0 completes (first exchange done) → move to diagnostic.
 _PHASE_SCHEDULE: dict[int, str] = {
-    0: "intro",       # Alex: hi + what do you want to work on?
-    1: "diagnostic",  # Alex: acknowledge topic, calibration question
-    3: "warmup",      # Alex: easy question on their topic
-    5: "main",        # Alex: full practice at appropriate difficulty
+    0: "diagnostic",  # after intro exchange: student stated topic → calibrate
+    2: "warmup",      # after 2 exchanges of calibration → easy question
+    4: "main",        # after warmup exchange → full practice
 }
 
 
 def _advance_phase(state: SessionState) -> None:
-    turn = state.get("turn_count", 0)
-    new_phase = _PHASE_SCHEDULE.get(turn)
+    """Called after a turn completes. Advances phase based on completed turn count."""
+    completed = state.get("turn_count", 0)  # already incremented
+    new_phase = _PHASE_SCHEDULE.get(completed)
     if new_phase and state.get("session_phase") != new_phase:
         state["session_phase"] = new_phase
-        logger.info("Phase → %s (turn %d)", new_phase, turn)
+        logger.info("Phase → %s (after turn %d)", new_phase, completed)
 
 
 async def stream_response(
@@ -51,8 +53,6 @@ async def stream_response(
     if state.get("turn_count", 0) == 0 and not state.get("session_goal"):
         state["session_goal"] = student_message[:300]
 
-    _advance_phase(state)
-
     response_parts: list[str] = []
     async for token in run_agent(state, signal):
         response_parts.append(token)
@@ -65,6 +65,8 @@ async def stream_response(
         "metadata": {"turn": state.get("turn_count", 0)},
     })
     state["turn_count"] = state.get("turn_count", 0) + 1
+    # Advance phase after the turn completes so Alex finishes the current phase naturally
+    _advance_phase(state)
 
     # Sync mastery to DB if an evaluation happened this turn
     if state.get("pending_mastery"):

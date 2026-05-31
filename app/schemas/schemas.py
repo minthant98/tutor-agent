@@ -54,6 +54,15 @@ class ProgressResponse(BaseModel):
     total_sessions: int
 
 
+class ActiveSessionResponse(BaseModel):
+    session_id: str
+    subject: str
+    topic: str | None
+    started_at: datetime
+    message_count: int
+    last_message: str | None
+
+
 class StudyPlanWeek(BaseModel):
     week: int
     topics: list[str]

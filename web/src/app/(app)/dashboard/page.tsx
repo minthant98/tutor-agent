@@ -2,9 +2,9 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getMe, startSession, createCheckout, getStudyPlan, regenerateStudyPlan } from '@/lib/api'
+import { getMe, startSession, createCheckout, getStudyPlan, regenerateStudyPlan, getActiveSession, resumeSession } from '@/lib/api'
 import { clearToken } from '@/lib/auth'
-import type { Student, StudyPlanResponse } from '@/lib/types'
+import type { ActiveSession, Student, StudyPlanResponse } from '@/lib/types'
 
 const SUBJECT_META: Record<string, { label: string; desc: string; available: boolean }> = {
   pure_mathematics:      { label: 'Pure Mathematics',      desc: 'Algebra, calculus, trigonometry & more', available: true },
@@ -26,6 +26,8 @@ export default function DashboardPage() {
   const [studyPlan, setStudyPlan] = useState<StudyPlanResponse | null>(null)
   const [planLoading, setPlanLoading] = useState(false)
   const [planError, setPlanError] = useState(false)
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null)
+  const [resuming, setResuming] = useState(false)
 
   useEffect(() => {
     getMe().then(setStudent).catch(() => router.push('/login'))
@@ -35,6 +37,7 @@ export default function DashboardPage() {
     if (!student) return
     const subject = student.subjects[0] ?? 'pure_mathematics'
     getStudyPlan(subject).then(setStudyPlan).catch(() => setPlanError(true))
+    getActiveSession().then(setActiveSession).catch(() => {})
   }, [student])
 
   async function handleStartSession(subject: string) {
@@ -67,6 +70,17 @@ export default function DashboardPage() {
       setPlanError(true)
     } finally {
       setPlanLoading(false)
+    }
+  }
+
+  async function handleResume() {
+    if (!activeSession) return
+    setResuming(true)
+    try {
+      const session = await resumeSession(activeSession.session_id)
+      router.push(`/session/${session.session_id}?opening=${encodeURIComponent(session.message)}`)
+    } catch {
+      setResuming(false)
     }
   }
 
@@ -162,6 +176,30 @@ export default function DashboardPage() {
             >
               Go Pro →
             </button>
+          </div>
+        )}
+
+        {/* Continue session */}
+        {activeSession && (
+          <div className="bg-white rounded-2xl border-2 border-blue-100 p-5 mb-6">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Continue where you left off</p>
+            <p className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>
+              {activeSession.topic ?? activeSession.subject.replace(/_/g, ' ')}
+            </p>
+            {activeSession.last_message && (
+              <p className="text-xs text-slate-400 mb-4 line-clamp-2">Alex: {activeSession.last_message}</p>
+            )}
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-slate-400">{activeSession.message_count} messages</p>
+              <button
+                onClick={handleResume}
+                disabled={resuming}
+                className="text-sm font-semibold text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50"
+                style={{ background: 'var(--blue)' }}
+              >
+                {resuming ? 'Loading…' : 'Continue →'}
+              </button>
+            </div>
           </div>
         )}
 

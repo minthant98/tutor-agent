@@ -49,6 +49,15 @@ export interface TopicMastery {
 export type Signal = 'explain' | 'guide' | null
 export type SessionPhase = 'diagnostic' | 'warmup' | 'main' | 'consolidation'
 
+export interface ActiveSession {
+  session_id: string
+  subject: string
+  topic: string | null
+  started_at: string
+  message_count: number
+  last_message: string | null
+}
+
 export interface StudyPlanWeek {
   week: number
   topics: string[]
