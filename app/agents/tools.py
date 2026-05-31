@@ -107,14 +107,40 @@ async def _search_syllabus(args: dict, state: SessionState) -> str:
 
 async def _generate_question(args: dict, state: SessionState) -> str:
     from app.core.llm import llm
+    from app.rag.qdrant_retriever import retrieve
+
     subject = state["subject"].replace("_", " ")
     exam_board = state["exam_board"].upper()
+    topic = args["topic"]
+    difficulty = args["difficulty"]
 
-    prompt = f"""Generate one {args['difficulty']} exam-style question for {exam_board} A-Level {subject}.
-Topic: {args['topic']}
+    # Retrieve real past paper examples for this topic + board to ground the question
+    examples = await retrieve(
+        query=f"{topic} exam question",
+        subject=state["subject"],
+        exam_board=state["exam_board"],
+        exam_level=state["exam_level"],
+        n_results=3,
+        doc_types=["past_paper", "mark_scheme"],
+    )
+
+    example_context = ""
+    if examples:
+        snippets = [f"--- Example {i+1} ({e['metadata'].get('doc_type','')}, {e['metadata'].get('year','')}) ---\n{e['text'][:400]}"
+                    for i, e in enumerate(examples)]
+        example_context = "\n\nReal exam examples for style reference:\n" + "\n\n".join(snippets)
+
+    prompt = f"""Generate one {difficulty} exam-style question for {exam_board} A-Level {subject}.
+Topic: {topic}{example_context}
+
+Rules:
+- Match the style, notation, and difficulty of the real examples above
+- Do NOT copy a question directly — create an original one inspired by the style
+- Include realistic numerical values and context typical of {exam_board} papers
+- Mark scheme must list every marking point clearly
 
 Return JSON only — no markdown fences, no extra text:
-{{"question": "full question text with any needed context or values", "marks_available": integer, "mark_scheme": "full model answer with all marking points", "difficulty": "{args['difficulty']}"}}"""
+{{"question": "full question text", "marks_available": integer, "mark_scheme": "full mark scheme with all marking points", "difficulty": "{difficulty}"}}"""
 
     result = await llm.generate_json(prompt)
     return json.dumps(result)
