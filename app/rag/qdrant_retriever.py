@@ -2,10 +2,17 @@ import logging
 from typing import Any
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
+from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from app.core.config import settings
 from app.rag.qdrant_ingestor import COLLECTION_NAME, get_qdrant_client
+
+# Cambridge ingested as "mathematics"; student profile uses "pure_mathematics".
+# Map each canonical subject to all equivalent stored values.
+_SUBJECT_ALIASES: dict[str, list[str]] = {
+    "pure_mathematics": ["pure_mathematics", "mathematics"],
+    "mathematics":      ["mathematics", "pure_mathematics"],
+}
 
 
 
@@ -54,6 +61,7 @@ async def retrieve(
     exam_board: str = "edexcel",
     exam_level: str = "a_level",
     n_results: int = 5,
+    doc_types: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     try:
         client = _get_client()
@@ -61,14 +69,25 @@ async def retrieve(
 
         query_vector = encoder.encode(query).tolist()
 
-        # Step 1 — retrieve top 20 candidates filtered by exam board
-        board_filter = Filter(
-            must=[FieldCondition(key="exam_board", match=MatchValue(value=exam_board))]
-        )
+        # Resolve subject aliases (e.g. pure_mathematics → also matches cambridge's "mathematics")
+        subject_values = _SUBJECT_ALIASES.get(subject, [subject])
+
+        must_conditions: list = [
+            FieldCondition(key="exam_board", match=MatchValue(value=exam_board)),
+            FieldCondition(key="subject", match=MatchAny(any=subject_values)),
+        ]
+        if doc_types:
+            must_conditions.append(
+                FieldCondition(key="doc_type", match=MatchAny(any=doc_types))
+            )
+
+        search_filter = Filter(must=must_conditions)
+
+        # Step 1 — retrieve top 20 candidates filtered by board + subject
         results = client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
-            query_filter=board_filter,
+            query_filter=search_filter,
             limit=20,
             with_payload=True,
         ).points
