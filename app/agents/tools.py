@@ -174,6 +174,9 @@ Return JSON only — no markdown fences:
     # Update weak topics in state and flag for DB mastery sync after this turn
     topic = result.get("topic")
     score = float(result.get("score_pct") or 0.0)
+    # LLM returns score_pct as 0–100; normalise to 0–1 for storage
+    if score > 1.0:
+        score = score / 100.0
     if topic:
         state["pending_mastery"] = {"topic": topic, "score": score}
         weak = list(state.get("weak_topics", []))
