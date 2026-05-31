@@ -65,6 +65,7 @@ export default function SessionPage() {
   const [phase, setPhase] = useState('diagnostic')
   const [weakTopics, setWeakTopics] = useState<string[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [rateLimited, setRateLimited] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -104,7 +105,12 @@ export default function SessionPage() {
         textareaRef.current?.focus()
       },
       (errMsg) => {
-        setMessages(prev => prev.map(m => m.id === alexMsgId ? { ...m, content: errMsg, streaming: false } : m))
+        if (errMsg === '__RATE_LIMIT__') {
+          setMessages(prev => prev.filter(m => m.id !== alexMsgId))
+          setRateLimited(true)
+        } else {
+          setMessages(prev => prev.map(m => m.id === alexMsgId ? { ...m, content: errMsg, streaming: false } : m))
+        }
         setStreaming(false)
       }
     )
@@ -210,8 +216,25 @@ export default function SessionPage() {
           </div>
         )}
 
+        {/* Rate limit banner */}
+        {rateLimited && (
+          <div className="px-5 py-4 border-t border-slate-100 bg-white shrink-0">
+            <div className="max-w-2xl mx-auto rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-center">
+              <p className="text-sm font-semibold text-amber-900 mb-1">You've reached your 20 message limit</p>
+              <p className="text-xs text-amber-700 mb-3">Upgrade to Pro for unlimited messages and full access to Alex.</p>
+              <a
+                href="/pricing"
+                className="inline-block text-xs font-semibold text-white px-5 py-2 rounded-xl hover:opacity-90 transition-opacity"
+                style={{ background: 'var(--navy)' }}
+              >
+                Upgrade to Pro
+              </a>
+            </div>
+          </div>
+        )}
+
         {/* Input */}
-        <div className="bg-white border-t border-slate-100 px-5 py-4 shrink-0">
+        <div className={`bg-white border-t border-slate-100 px-5 py-4 shrink-0 ${rateLimited ? 'opacity-40 pointer-events-none' : ''}`}>
           <div className="max-w-2xl mx-auto flex gap-3 items-end">
             <textarea
               ref={textareaRef}

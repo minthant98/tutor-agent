@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from app.core.config import settings
 from app.rag.qdrant_ingestor import COLLECTION_NAME, get_qdrant_client
@@ -60,10 +61,14 @@ async def retrieve(
 
         query_vector = encoder.encode(query).tolist()
 
-        # Step 1 — retrieve top 20 candidates
+        # Step 1 — retrieve top 20 candidates filtered by exam board
+        board_filter = Filter(
+            must=[FieldCondition(key="exam_board", match=MatchValue(value=exam_board))]
+        )
         results = client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
+            query_filter=board_filter,
             limit=20,
             with_payload=True,
         ).points

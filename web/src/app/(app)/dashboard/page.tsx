@@ -2,15 +2,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { getMe, startSession, createCheckout } from '@/lib/api'
+import { getMe, startSession, createCheckout, getStudyPlan, regenerateStudyPlan } from '@/lib/api'
 import { clearToken } from '@/lib/auth'
-import type { Student } from '@/lib/types'
+import type { Student, StudyPlanResponse } from '@/lib/types'
 
 const SUBJECT_META: Record<string, { label: string; desc: string; available: boolean }> = {
-  mathematics: { label: 'Mathematics', desc: 'Pure, Mechanics & Statistics', available: true },
-  physics:     { label: 'Physics',     desc: 'Coming soon',                  available: false },
-  chemistry:   { label: 'Chemistry',   desc: 'Coming soon',                  available: false },
-  biology:     { label: 'Biology',     desc: 'Coming soon',                  available: false },
+  pure_mathematics:      { label: 'Pure Mathematics',      desc: 'Algebra, calculus, trigonometry & more', available: true },
+  mechanics_statistics:  { label: 'Mechanics & Statistics', desc: 'Coming soon',                           available: false },
+  physics:               { label: 'Physics',                desc: 'Coming soon',                           available: false },
+  chemistry:             { label: 'Chemistry',              desc: 'Coming soon',                           available: false },
 }
 
 function daysUntil(dateStr: string | null): number | null {
@@ -23,10 +23,19 @@ export default function DashboardPage() {
   const router = useRouter()
   const [student, setStudent] = useState<Student | null>(null)
   const [starting, setStarting] = useState<string | null>(null)
+  const [studyPlan, setStudyPlan] = useState<StudyPlanResponse | null>(null)
+  const [planLoading, setPlanLoading] = useState(false)
+  const [planError, setPlanError] = useState(false)
 
   useEffect(() => {
     getMe().then(setStudent).catch(() => router.push('/login'))
   }, [router])
+
+  useEffect(() => {
+    if (!student) return
+    const subject = student.subjects[0] ?? 'pure_mathematics'
+    getStudyPlan(subject).then(setStudyPlan).catch(() => setPlanError(true))
+  }, [student])
 
   async function handleStartSession(subject: string) {
     if (!student) return
@@ -46,6 +55,36 @@ export default function DashboardPage() {
     } catch { /* empty */ }
   }
 
+  async function handleRegeneratePlan() {
+    if (!student) return
+    const subject = student.subjects[0] ?? 'pure_mathematics'
+    setPlanLoading(true)
+    setPlanError(false)
+    try {
+      const plan = await regenerateStudyPlan(subject)
+      setStudyPlan(plan)
+    } catch {
+      setPlanError(true)
+    } finally {
+      setPlanLoading(false)
+    }
+  }
+
+  async function handleGeneratePlan() {
+    if (!student) return
+    const subject = student.subjects[0] ?? 'pure_mathematics'
+    setPlanLoading(true)
+    setPlanError(false)
+    try {
+      const plan = await getStudyPlan(subject)
+      setStudyPlan(plan)
+    } catch {
+      setPlanError(true)
+    } finally {
+      setPlanLoading(false)
+    }
+  }
+
   if (!student) {
     return (
       <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--bg)' }}>
@@ -55,7 +94,7 @@ export default function DashboardPage() {
   }
 
   const days = daysUntil(student.exam_date)
-  const subjects = student.subjects.length ? student.subjects : ['mathematics']
+  const subjects = student.subjects.length ? student.subjects : ['pure_mathematics']
   const firstName = student.name.split(' ')[0]
 
   return (
@@ -158,14 +197,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Nav cards */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 mb-8">
           <Link href="/progress" className="bg-white rounded-2xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-sm transition-all">
-            <p className="text-2xl mb-3">📊</p>
             <p className="text-sm font-bold" style={{ color: 'var(--navy)' }}>My Progress</p>
             <p className="text-xs text-slate-400 mt-1">Topic mastery & history</p>
           </Link>
           <Link href="/pricing" className="bg-white rounded-2xl border border-slate-100 p-5 hover:border-slate-200 hover:shadow-sm transition-all">
-            <p className="text-2xl mb-3">⭐</p>
             <p className="text-sm font-bold" style={{ color: 'var(--navy)' }}>
               {student.subscription_tier === 'pro' ? 'Pro Plan' : 'Upgrade'}
             </p>
@@ -173,6 +210,75 @@ export default function DashboardPage() {
               {student.subscription_tier === 'pro' ? 'Unlimited access' : 'Unlock all subjects'}
             </p>
           </Link>
+        </div>
+
+        {/* Study Plan */}
+        <div className="bg-white rounded-2xl border border-slate-100 p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">Study Plan</p>
+              {studyPlan && (
+                <p className="text-xs text-slate-400">{studyPlan.weeks_remaining} weeks to exam</p>
+              )}
+            </div>
+            {studyPlan && (
+              <button
+                onClick={handleRegeneratePlan}
+                disabled={planLoading}
+                className="text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-50 transition-colors"
+              >
+                {planLoading ? 'Regenerating…' : 'Regenerate'}
+              </button>
+            )}
+          </div>
+
+          {planLoading && !studyPlan && (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--navy)' }} />
+            </div>
+          )}
+
+          {!planLoading && !studyPlan && !planError && (
+            <div className="text-center py-8">
+              <p className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>No study plan yet</p>
+              <p className="text-xs text-slate-400 mb-5">Get a personalised week-by-week revision plan based on your weak topics.</p>
+              <button
+                onClick={handleGeneratePlan}
+                className="text-sm font-semibold text-white px-5 py-2.5 rounded-xl hover:opacity-90 transition-opacity"
+                style={{ background: 'var(--navy)' }}
+              >
+                Generate my study plan →
+              </button>
+            </div>
+          )}
+
+          {planError && (
+            <div className="text-center py-6">
+              <p className="text-xs text-slate-400 mb-3">Could not load study plan.</p>
+              <button onClick={handleGeneratePlan} className="text-xs font-semibold underline text-slate-500">Try again</button>
+            </div>
+          )}
+
+          {studyPlan && studyPlan.plan.length > 0 && (
+            <ol className="space-y-3">
+              {studyPlan.plan.map((week) => (
+                <li key={week.week} className="flex gap-3">
+                  <span
+                    className="shrink-0 w-6 h-6 rounded-full text-xs font-bold flex items-center justify-center mt-0.5"
+                    style={{ background: 'var(--navy)', color: 'white' }}
+                  >
+                    {week.week}
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--navy)' }}>
+                      {week.topics.join(' · ')}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">{week.focus}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       </main>
     </div>

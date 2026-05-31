@@ -4,13 +4,17 @@ import { useRouter } from 'next/navigation'
 import { updateProfile } from '@/lib/api'
 
 const SUBJECTS = [
-  { id: 'mathematics', label: 'Mathematics' },
-  { id: 'physics', label: 'Physics', soon: true },
-  { id: 'chemistry', label: 'Chemistry', soon: true },
-  { id: 'biology', label: 'Biology', soon: true },
+  { id: 'pure_mathematics', label: 'Pure Mathematics', desc: 'Algebra, calculus, trigonometry & more' },
+  { id: 'mechanics_statistics', label: 'Mechanics & Statistics', desc: 'Coming soon', soon: true },
+  { id: 'physics', label: 'Physics', desc: 'Coming soon', soon: true },
+  { id: 'chemistry', label: 'Chemistry', desc: 'Coming soon', soon: true },
 ]
 
-const EXAM_BOARDS = ['Edexcel', 'AQA', 'OCR']
+const EXAM_BOARDS = [
+  { id: 'edexcel', label: 'Edexcel', desc: 'A-Level' },
+  { id: 'cambridge', label: 'Cambridge (CIE)', desc: 'A-Level / IGCSE' },
+  { id: 'ib', label: 'IB', desc: 'International Baccalaureate', soon: true },
+]
 
 export default function OnboardingPage() {
   const router = useRouter()
@@ -66,9 +70,12 @@ export default function OnboardingPage() {
                       : 'border-gray-200 hover:border-indigo-300'
                   }`}
                 >
-                  <span className="font-medium">{s.label}</span>
+                  <div>
+                    <p className="font-medium text-sm">{s.label}</p>
+                    {s.desc && <p className="text-xs text-gray-400 mt-0.5">{s.desc}</p>}
+                  </div>
                   {s.soon && <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">Coming soon</span>}
-                  {subjects.includes(s.id) && <span className="text-indigo-600">✓</span>}
+                  {!s.soon && subjects.includes(s.id) && <span className="text-indigo-600">✓</span>}
                 </button>
               ))}
             </div>
@@ -89,16 +96,23 @@ export default function OnboardingPage() {
             <div className="space-y-3">
               {EXAM_BOARDS.map(b => (
                 <button
-                  key={b}
-                  onClick={() => setExamBoard(b.toLowerCase())}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-left transition-all font-medium ${
-                    examBoard === b.toLowerCase()
+                  key={b.id}
+                  onClick={() => !b.soon && setExamBoard(b.id)}
+                  disabled={b.soon}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                    examBoard === b.id
                       ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                      : b.soon
+                      ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
                       : 'border-gray-200 hover:border-indigo-300'
                   }`}
                 >
-                  {b}
-                  {examBoard === b.toLowerCase() && <span className="text-indigo-600">✓</span>}
+                  <div>
+                    <p className="font-medium text-sm">{b.label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{b.desc}</p>
+                  </div>
+                  {b.soon && <span className="text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">Coming soon</span>}
+                  {!b.soon && examBoard === b.id && <span className="text-indigo-600">✓</span>}
                 </button>
               ))}
             </div>

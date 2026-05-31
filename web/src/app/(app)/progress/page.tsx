@@ -108,7 +108,6 @@ export default function ProgressPage() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center">
-            <p className="text-4xl mb-4">📚</p>
             <p className="font-semibold mb-1" style={{ color: 'var(--navy)' }}>No data yet</p>
             <p className="text-slate-400 text-sm mb-6">Complete a session to see your topic mastery here.</p>
             <button

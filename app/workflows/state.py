@@ -23,7 +23,7 @@ class SessionState(TypedDict):
 
     # Session structure
     session_goal: str | None
-    session_phase: Literal["diagnostic", "warmup", "main", "consolidation"]
+    session_phase: Literal["intro", "diagnostic", "warmup", "main", "consolidation"]
     exam_date: str | None  # ISO format: "2026-06-15"
 
     # Progress (weak_topics persisted to DB; session_summaries injected at session start for Pro)
@@ -60,7 +60,7 @@ def initial_state(
         "conversation_history": [],
         "current_input": "",
         "session_goal": None,
-        "session_phase": "diagnostic",
+        "session_phase": "intro",
         "exam_date": exam_date,
         "weak_topics": weak_topics or [],
         "mastery_scores": mastery_scores or {},

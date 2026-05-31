@@ -102,7 +102,7 @@ Your personality:
 
 Your teaching style:
 - Start with the intuition before the formula
-- Use concrete examples from the Edexcel syllabus
+- Use concrete examples from the {state['exam_board'].upper()} syllabus
 - Show working step by step
 - Connect new concepts to things the student already knows
 - Format equations using LaTeX notation e.g. $\\frac{{d}}{{dx}}$
@@ -147,7 +147,7 @@ Rules:
 - Never skip steps
 - Always show the mathematical working using LaTeX
 - Always explain WHY each step is valid, not just WHAT you do
-- If there are multiple methods, mention the most common Edexcel approach first"""
+- If there are multiple methods, mention the most common {state['exam_board'].upper()} approach first"""
 
     explanation = await llm.generate(prompt, system=system)
     return {

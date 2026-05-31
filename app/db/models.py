@@ -45,6 +45,9 @@ class Student(Base):
     mastery_records: Mapped[list["MasteryState"]] = relationship(
         back_populates="student", cascade="all, delete-orphan"
     )
+    study_plan: Mapped["StudyPlan | None"] = relationship(
+        back_populates="student", cascade="all, delete-orphan", uselist=False
+    )
 
 
 class TutorSession(Base):
@@ -68,6 +71,25 @@ class TutorSession(Base):
     )
 
     student: Mapped["Student"] = relationship(back_populates="sessions")
+
+
+class StudyPlan(Base):
+    __tablename__ = "study_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("students.id"), nullable=False
+    )
+    subject: Mapped[str] = mapped_column(String(100), nullable=False)
+    weeks_remaining: Mapped[int] = mapped_column(Integer, nullable=False)
+    plan: Mapped[list] = mapped_column(JSON, nullable=False)  # list of week dicts
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    student: Mapped["Student"] = relationship(back_populates="study_plan")
 
 
 class MasteryState(Base):

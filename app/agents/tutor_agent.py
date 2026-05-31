@@ -12,21 +12,29 @@ logger = logging.getLogger(__name__)
 Signal = Literal["explain", "guide"] | None
 
 _PHASE_INSTRUCTIONS: dict[str, str] = {
+    "intro": (
+        "The student has just arrived. Do NOT call any tools yet. "
+        "Ask ONE clear question: do they have a specific topic they'd like to work on, "
+        "or a particular question they're stuck on? Keep it brief and warm."
+    ),
     "diagnostic": (
-        "Ask ONE open question to find out what the student already knows. "
-        "Do not call generate_question yet."
+        "The student has told you what they want to work on. "
+        "Acknowledge their topic or question warmly. "
+        "Ask ONE short calibration question to see where they're starting from on that specific topic — "
+        "conceptual, not a full calculation. Do not call generate_question yet."
     ),
     "warmup": (
-        "Call generate_question with difficulty='easy' to give the student a confidence-building question. "
-        "Be warm and encouraging."
+        "You now know their starting level. Call generate_question with difficulty='easy' "
+        "on their specific topic to build confidence before harder questions."
     ),
     "main": (
-        "Work through questions at the right difficulty. "
-        "Be Socratic — ask a leading question before giving a hint. "
-        "Call generate_question when the student is ready for the next question."
+        "Work through their topic with questions at the right difficulty. "
+        "Be Socratic — give a leading hint before the answer. "
+        "Call generate_question when the student is ready for the next question. "
+        "Call evaluate_answer when they show working."
     ),
     "consolidation": (
-        "Summarise what was covered. Name specifically what clicked and what still needs work. "
+        "Summarise what was covered today. Name specifically what clicked and what still needs work. "
         "End with one clear focus for next time."
     ),
 }
@@ -116,11 +124,9 @@ def _build_messages(state: SessionState, signal: Signal) -> list[dict]:
 
 async def generate_opening_message(state: SessionState) -> str:
     """
-    Generate a personalized first message from Alex when a session starts.
-    New students get a diagnostic question. Returning students get a warm reference
-    to their previous weak areas.
+    First message from Alex. New students get an intro + topic ask.
+    Returning students get a warm callback to their last session + topic ask.
     """
-    exam_board = state["exam_board"].upper()
     subject = state["subject"].replace("_", " ").title()
     days = _days_to_exam(state)
     weak = state.get("weak_topics", [])
@@ -128,41 +134,42 @@ async def generate_opening_message(state: SessionState) -> str:
     is_returning = bool(weak or summaries)
 
     if is_returning:
-        weak_str = ", ".join(weak[:3]) if weak else "various topics"
-        last_summary = f"\nLast session: {summaries[-1]}" if summaries else ""
-        prompt = f"""You are Alex, a warm {exam_board} A-Level {subject} tutor.
+        weak_str = ", ".join(weak[:3]) if weak else "a few topics"
+        last_summary = f" Last time we covered: {summaries[-1]}." if summaries else ""
+        prompt = f"""You are Alex, a friendly A-Level {subject} tutor.
 
 This student is returning. Their weak areas: {weak_str}.{last_summary}
 
-Write a natural 2-3 sentence opening message that:
-- Welcomes them back warmly (no "Hi" or "Hello" — be more natural)
-- References their specific weak area
-- Asks if they want to continue with that or work on something else
-- Feels like a real person, not a chatbot
+Write a short, warm 2-sentence message that:
+- Welcomes them back naturally (you can use "Welcome back" or similar)
+- Mentions their weak area briefly
+- Ends by asking: do they want to continue with that topic, or is there something specific they want to work on or a question they're stuck on?
 
-Write only the message. No quotes."""
+Write only the message. No quotes. No markdown."""
     else:
-        prompt = f"""You are Alex, a warm {exam_board} A-Level {subject} tutor meeting a student for the first time.
+        prompt = f"""You are Alex, a friendly A-Level {subject} tutor meeting a student for the first time.
 
 Their exam is in {days}.
 
-Write a natural 2-3 sentence opening message that:
-- Acknowledges the exam timeline with encouraging urgency (mention {days} specifically)
-- Says you want to see where they're starting from
-- Ends with ONE open diagnostic question about {subject} to calibrate their level
-  (e.g. "tell me in your own words what differentiation does" — conceptual, not a calculation)
-- Feels conversational and warm, like sitting next to them
+Write a short, warm 2-3 sentence message that:
+- Introduces yourself as Alex
+- Is encouraging about the exam timeline
+- Ends by asking: is there a specific topic they'd like to work on, or do they have a particular question they need help with?
 
-Write only the message. No quotes."""
+Write only the message. No quotes. No markdown."""
 
     try:
         return await llm.generate(prompt)
     except LLMError:
-        subject_display = state["subject"].replace("_", " ")
+        if is_returning:
+            return (
+                f"Welcome back! I can see {', '.join(weak[:2])} are still on the list — "
+                f"want to pick up there, or is there something specific you'd like to work on today?"
+            )
         return (
-            f"Great to meet you! You've got {days} until your {subject_display} exam — "
-            f"let's make the most of it. To start, tell me in your own words: "
-            f"what's one topic in {subject_display} you feel least confident about right now?"
+            f"Hi, I'm Alex — your {subject} tutor! With {days} until your exam, "
+            f"let's make every session count. Is there a specific topic you'd like to work on, "
+            f"or do you have a particular question you're stuck on?"
         )
 
 

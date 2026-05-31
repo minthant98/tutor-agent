@@ -62,9 +62,9 @@ function DemoChat() {
 }
 
 const PROBLEMS = [
-  { icon: '😓', title: 'Stuck on a problem at 11pm', body: "Your tutor is asleep. Your exam is in 6 weeks. Alex is always available." },
-  { icon: '💸', title: 'Private tutors cost £50+/hr', body: 'Alex costs less than a single session — for an entire month of unlimited tutoring.' },
-  { icon: '📋', title: 'Not enough past paper practice', body: 'Alex draws from thousands of real Edexcel past paper questions and mark schemes.' },
+  { title: 'Stuck on a problem at 11pm', body: "Your tutor is asleep. Your exam is in 6 weeks. Alex is always available." },
+  { title: 'Private tutors cost £50+/hr', body: 'Alex costs less than a single session — for an entire month of unlimited tutoring.' },
+  { title: 'Not enough past paper practice', body: 'Alex draws from thousands of real Edexcel past paper questions and mark schemes.' },
 ]
 
 const HOW = [
@@ -148,7 +148,6 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-6">
             {PROBLEMS.map(p => (
               <div key={p.title} className="rounded-2xl p-7 border border-slate-100" style={{ background: 'var(--bg)' }}>
-                <span className="text-3xl mb-4 block">{p.icon}</span>
                 <h3 className="font-semibold text-base mb-2" style={{ color: 'var(--navy)' }}>{p.title}</h3>
                 <p className="text-sm text-slate-500 leading-relaxed">{p.body}</p>
               </div>
