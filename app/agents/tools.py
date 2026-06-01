@@ -1,5 +1,6 @@
 import json
 import logging
+from app.core.telemetry import capture
 from app.workflows.state import SessionState
 
 logger = logging.getLogger(__name__)
@@ -150,6 +151,13 @@ Return JSON only — no markdown fences, no extra text:
         "difficulty": result.get("difficulty", difficulty),
         "topic": topic,
     }
+    capture(state["student_id"], "question_generated", {
+        "topic": topic,
+        "difficulty": difficulty,
+        "marks_available": result.get("marks_available", 0),
+        "phase": state.get("session_phase"),
+        "exam_board": state.get("exam_board"),
+    })
     return json.dumps(result)
 
 
@@ -187,6 +195,16 @@ Return JSON only — no markdown fences:
         "correct_steps": result.get("correct_steps", []),
         "errors": result.get("errors", []),
     }
+    capture(state["student_id"], "answer_evaluated", {
+        "topic": result.get("topic", ""),
+        "marks_awarded": result.get("marks_awarded", 0),
+        "marks_available": result.get("marks_available", 0),
+        "score_pct": result.get("score_pct", 0),
+        "error_count": len(result.get("errors", []) or []),
+        "phase": state.get("session_phase"),
+        "exam_board": state.get("exam_board"),
+        "sympy_method": sympy_result.get("method"),
+    })
 
     # Update weak topics in state and flag for DB mastery sync after this turn
     topic = result.get("topic")

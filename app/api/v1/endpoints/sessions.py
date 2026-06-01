@@ -88,6 +88,15 @@ async def start_session(
     save_session(state)
     await db.commit()
 
+    from app.core.telemetry import capture
+    capture(str(student.id), "session_started", {
+        "session_id": state["session_id"],
+        "subject": body.subject,
+        "exam_board": student.exam_board,
+        "is_new_student": not bool(weak_topics),
+        "subscription_tier": student.subscription_tier,
+    })
+
     return StartSessionResponse(
         session_id=state["session_id"],
         message=opening,
@@ -229,6 +238,16 @@ async def end_session(
     weak = state.get("weak_topics", []) if state else []
     turns = state.get("turn_count", 0) if state else 0
 
+    from app.core.telemetry import capture
+    capture(str(student.id), "session_ended", {
+        "session_id": session_id,
+        "turn_count": turns,
+        "weak_topic_count": len(weak),
+        "subject": db_session.subject,
+        "final_phase": (state.get("session_phase") if state else None),
+        "reached_consolidation": ((state.get("session_phase") if state else None) == "consolidation"),
+    })
+
     return EndSessionResponse(
         session_id=session_id,
         turns=turns,
@@ -321,6 +340,14 @@ async def resume_session(
 
     tutor_messages = [m for m in messages if m.get("role") == "tutor"]
     last_message = tutor_messages[-1]["content"] if tutor_messages else "Welcome back! Where were we?"
+
+    from app.core.telemetry import capture
+    capture(str(student.id), "session_resumed", {
+        "session_id": session_id,
+        "subject": db_session.subject,
+        "turn_count": turn_count,
+        "phase": phase,
+    })
 
     return StartSessionResponse(
         session_id=session_id,

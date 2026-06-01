@@ -2,9 +2,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { register, login } from '@/lib/api'
+import { register, login, getMe } from '@/lib/api'
 import { setToken } from '@/lib/auth'
 import { ApiError } from '@/lib/api'
+import { identifyUser, track } from '@/lib/posthog'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -23,6 +24,11 @@ export default function RegisterPage() {
       await register(email, name, password)
       const { access_token } = await login(email, password)
       setToken(access_token)
+      try {
+        const student = await getMe()
+        identifyUser(student.id, { email: student.email, subscription_tier: student.subscription_tier })
+      } catch { /* empty */ }
+      track('signup_completed')
       router.push('/onboarding')
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {

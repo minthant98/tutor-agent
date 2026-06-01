@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { login, getMe } from '@/lib/api'
 import { setToken } from '@/lib/auth'
+import { identifyUser, track } from '@/lib/posthog'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -20,6 +21,12 @@ export default function LoginPage() {
       const { access_token } = await login(email, password)
       setToken(access_token)
       const student = await getMe()
+      identifyUser(student.id, {
+        email: student.email,
+        subscription_tier: student.subscription_tier,
+        exam_board: student.exam_board,
+      })
+      track('login_completed')
       router.push(student.onboarding_complete ? '/dashboard' : '/onboarding')
     } catch {
       setError('Incorrect email or password.')
