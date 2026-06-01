@@ -63,7 +63,7 @@ function DemoChat() {
 
 const PROBLEMS = [
   { title: 'Stuck on a problem at 11pm', body: "Your tutor is asleep. Your exam is in 6 weeks. Alex is always available." },
-  { title: 'Private tutors cost £50+/hr', body: 'Alex costs less than a single session — for an entire month of unlimited tutoring.' },
+  { title: 'Private tutors cost 50,000+ MMK/hr', body: 'Alex costs less than a single session — for an entire month of unlimited tutoring.' },
   { title: 'Not enough past paper practice', body: 'Alex draws from thousands of real Edexcel past paper questions and mark schemes.' },
 ]
 
@@ -194,10 +194,10 @@ export default function LandingPage() {
         <div className="grid sm:grid-cols-2 gap-6">
           <div className="rounded-2xl p-8 border-2 border-slate-100 bg-white">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Free</p>
-            <p className="text-5xl font-bold mb-1" style={{ color: 'var(--navy)' }}>£0</p>
+            <p className="text-5xl font-bold mb-1" style={{ color: 'var(--navy)' }}>0 MMK</p>
             <p className="text-sm text-slate-400 mb-8">forever</p>
             <ul className="space-y-3 text-sm text-slate-600 mb-8">
-              {['20 messages per day', 'Mathematics only', 'Socratic tutoring', 'Explain & Guide modes'].map(f => (
+              {['20 messages per day', 'Pure Mathematics only', 'Socratic tutoring', 'Explain & Guide modes'].map(f => (
                 <li key={f} className="flex items-center gap-2.5"><span className="text-emerald-500 font-bold">✓</span>{f}</li>
               ))}
             </ul>
@@ -209,10 +209,10 @@ export default function LandingPage() {
           <div className="rounded-2xl p-8 border-2 text-white relative overflow-hidden" style={{ background: 'var(--navy)', borderColor: 'var(--navy)' }}>
             <div className="absolute top-5 right-5 text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: 'var(--blue)' }}>7-day trial</div>
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-5">Pro</p>
-            <p className="text-5xl font-bold mb-1">£9.99</p>
+            <p className="text-5xl font-bold mb-1">50,000 MMK</p>
             <p className="text-sm text-slate-400 mb-8">per month</p>
             <ul className="space-y-3 text-sm text-slate-300 mb-8">
-              {['Unlimited messages', 'All subjects (Maths, Physics, Chemistry)', 'Cross-session memory', 'Exam readiness score', 'Weekly progress emails'].map(f => (
+              {['Unlimited messages', 'All subjects (Maths, Physics, Chemistry)', 'Session memory & continuity', 'Personalised study plan', 'Weak topic coaching'].map(f => (
                 <li key={f} className="flex items-center gap-2.5"><span className="text-emerald-400 font-bold">✓</span>{f}</li>
               ))}
             </ul>

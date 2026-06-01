@@ -32,7 +32,7 @@ export default function OnboardingPage() {
     setLoading(true)
     try {
       await updateProfile({
-        subjects: subjects.length ? subjects : ['mathematics'],
+        subjects: subjects.length ? subjects : ['pure_mathematics'],
         exam_board: examBoard,
         exam_date: examDate || undefined,
       })
