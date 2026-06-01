@@ -135,6 +135,14 @@ async def stream_message(
             ):
                 yield f"data: {json.dumps({'token': token})}\n\n"
 
+            # Emit structured cards produced by tool calls this turn, then clear
+            if state.get("last_question"):
+                yield f"data: {json.dumps({'question': state['last_question']})}\n\n"
+                state["last_question"] = None
+            if state.get("last_evaluation"):
+                yield f"data: {json.dumps({'evaluation': state['last_evaluation']})}\n\n"
+                state["last_evaluation"] = None
+
             save_session(state)
             await db.commit()
 

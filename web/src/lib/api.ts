@@ -1,5 +1,5 @@
 import { getToken } from './auth'
-import type { ActiveSession, MessageResponse, ProgressResponse, Session, Signal, Student, StudyPlanResponse } from './types'
+import type { ActiveSession, EvaluationCard, MessageResponse, ProgressResponse, QuestionCard, Session, Signal, Student, StudyPlanResponse } from './types'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1'
 
@@ -127,8 +127,10 @@ export function streamMessage(
   message: string,
   signal: Signal,
   onToken: (token: string) => void,
-  onDone: (meta: { session_phase: string; weak_topics: string[]; turn_count: number }) => void,
-  onError: (msg: string) => void
+  onDone: (meta: { session_phase: string; weak_topics: string[]; turn_count: number; plan_ready?: boolean }) => void,
+  onError: (msg: string) => void,
+  onQuestion?: (q: QuestionCard) => void,
+  onEvaluation?: (e: EvaluationCard) => void
 ): () => void {
   const token = getToken()
   const controller = new AbortController()
@@ -168,7 +170,9 @@ export function streamMessage(
         try {
           const data = JSON.parse(line.slice(6))
           if (data.token) onToken(data.token)
-          else if (data.done) onDone({ session_phase: data.session_phase, weak_topics: data.weak_topics ?? [], turn_count: data.turn_count ?? 0 })
+          else if (data.question) onQuestion?.(data.question as QuestionCard)
+          else if (data.evaluation) onEvaluation?.(data.evaluation as EvaluationCard)
+          else if (data.done) onDone({ session_phase: data.session_phase, weak_topics: data.weak_topics ?? [], turn_count: data.turn_count ?? 0, plan_ready: data.plan_ready ?? false })
           else if (data.error) onError(data.error)
         } catch { /* empty */ }
       }

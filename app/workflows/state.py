@@ -34,6 +34,10 @@ class SessionState(TypedDict):
     # Set by evaluate_answer tool; cleared by session_service after DB sync
     pending_mastery: dict[str, Any] | None
 
+    # Structured UI cards from this turn's tool calls; emitted then cleared each turn
+    last_question: dict[str, Any] | None
+    last_evaluation: dict[str, Any] | None
+
     # Meta
     turn_count: int
     error: str | None
@@ -66,6 +70,8 @@ def initial_state(
         "mastery_scores": mastery_scores or {},
         "session_summaries": session_summaries or [],
         "pending_mastery": None,
+        "last_question": None,
+        "last_evaluation": None,
         "turn_count": 0,
         "error": None,
     }

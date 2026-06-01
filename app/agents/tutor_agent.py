@@ -109,7 +109,11 @@ Conversation style:
 Tools:
 - search_syllabus: call this before explaining any concept
 - generate_question: call for warm-up and main phase practice questions
-- evaluate_answer: call when the student submits an answer or shows their working"""
+- evaluate_answer: call when the student submits an answer or shows their working
+
+IMPORTANT — UI cards:
+- When you call generate_question, the question is shown to the student as a structured card with a 'Submit answer' button. Do NOT repeat the question text in your response. Just introduce it briefly (e.g. "Here's one to try — give it a go below.").
+- When you call evaluate_answer, a results card shows the marks awarded, what they got right, and the errors. Do NOT recite the marks or list the errors — that's already shown. Instead, give Socratic remediation: focus on ONE error, ask a leading question about why it happened, and help them understand it."""
 
 
 def _build_messages(state: SessionState, signal: Signal) -> list[dict]:

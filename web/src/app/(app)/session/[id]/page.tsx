@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { streamMessage, endSession } from '@/lib/api'
-import type { Message, Signal } from '@/lib/types'
+import type { EvaluationCard, QuestionCard, Signal } from '@/lib/types'
 import { renderMath } from '@/lib/math'
 
-interface ChatMessage extends Message {
-  id: string
-  streaming?: boolean
-}
+type ChatItem =
+  | { kind: 'msg'; id: string; role: 'student' | 'tutor'; content: string; streaming?: boolean }
+  | { kind: 'question'; id: string; data: QuestionCard; answered: boolean }
+  | { kind: 'evaluation'; id: string; data: EvaluationCard }
 
 const PHASE_LABEL: Record<string, string> = {
   intro: 'Getting started',
@@ -26,8 +26,14 @@ const PHASE_COLOR: Record<string, string> = {
   consolidation: '#22C55E',
 }
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
-  const isAlex = msg.role === 'tutor'
+const DIFFICULTY_COLOR: Record<string, string> = {
+  easy: '#22C55E',
+  medium: '#F59E0B',
+  hard: '#EF4444',
+}
+
+function MessageBubble({ item }: { item: Extract<ChatItem, { kind: 'msg' }> }) {
+  const isAlex = item.role === 'tutor'
   return (
     <div className={`flex ${isAlex ? 'justify-start' : 'justify-end'} mb-5`}>
       {isAlex && (
@@ -40,10 +46,122 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           isAlex
             ? 'bg-white border border-slate-100 shadow-sm text-slate-800'
             : 'text-white'
-        } ${msg.streaming ? 'after:content-["▋"] after:animate-pulse after:ml-0.5 after:text-slate-400' : ''}`}
+        } ${item.streaming ? 'after:content-["▋"] after:animate-pulse after:ml-0.5 after:text-slate-400' : ''}`}
         style={!isAlex ? { background: 'var(--navy)' } : {}}
-        dangerouslySetInnerHTML={{ __html: renderMath(msg.content) }}
+        dangerouslySetInnerHTML={{ __html: renderMath(item.content) }}
       />
+    </div>
+  )
+}
+
+function QuestionCardView({
+  item,
+  onSubmit,
+  disabled,
+}: {
+  item: Extract<ChatItem, { kind: 'question' }>
+  onSubmit: (answer: string) => void
+  disabled: boolean
+}) {
+  const [answer, setAnswer] = useState('')
+  const { data, answered } = item
+  const diffColor = DIFFICULTY_COLOR[data.difficulty] ?? '#94A3B8'
+
+  return (
+    <div className="mb-6 rounded-2xl border-2 border-slate-200 bg-white overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between" style={{ background: 'var(--bg)' }}>
+        <div className="flex items-center gap-3">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Practice question</p>
+          <span
+            className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full text-white"
+            style={{ background: diffColor }}
+          >
+            {data.difficulty}
+          </span>
+        </div>
+        <p className="text-xs font-semibold text-slate-500">{data.marks_available} {data.marks_available === 1 ? 'mark' : 'marks'}</p>
+      </div>
+      <div
+        className="px-5 py-4 text-sm leading-relaxed text-slate-800"
+        dangerouslySetInnerHTML={{ __html: renderMath(data.question) }}
+      />
+      {!answered && (
+        <div className="px-5 pb-5">
+          <textarea
+            value={answer}
+            onChange={e => setAnswer(e.target.value)}
+            placeholder="Show your working here..."
+            rows={4}
+            disabled={disabled}
+            className="w-full resize-none border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 disabled:opacity-50 mb-3"
+          />
+          <button
+            onClick={() => { if (answer.trim()) onSubmit(answer.trim()) }}
+            disabled={!answer.trim() || disabled}
+            className="w-full text-sm font-semibold text-white py-2.5 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-40"
+            style={{ background: 'var(--navy)' }}
+          >
+            Submit answer →
+          </button>
+        </div>
+      )}
+      {answered && (
+        <div className="px-5 pb-4 text-xs text-slate-400 italic">Answer submitted — see results below.</div>
+      )}
+    </div>
+  )
+}
+
+function EvaluationCardView({ data }: { data: EvaluationCard }) {
+  const pct = data.marks_available > 0 ? Math.round((data.marks_awarded / data.marks_available) * 100) : 0
+  const color = pct >= 70 ? 'var(--green)' : pct >= 40 ? '#F59E0B' : '#EF4444'
+  const label = pct >= 70 ? 'Strong' : pct >= 40 ? 'Partial' : 'Needs work'
+
+  return (
+    <div className="mb-6 rounded-2xl border-2 overflow-hidden" style={{ borderColor: color, background: 'white' }}>
+      <div className="px-5 py-4 flex items-center justify-between" style={{ background: 'var(--bg)' }}>
+        <div>
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Result</p>
+          <p className="text-xs text-slate-500 capitalize">{data.topic.replace(/_/g, ' ')}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-3xl font-bold" style={{ color }}>
+            {data.marks_awarded}<span className="text-slate-300 text-xl"> / {data.marks_available}</span>
+          </p>
+          <p className="text-xs font-semibold" style={{ color }}>{label}</p>
+        </div>
+      </div>
+      <div className="w-full bg-slate-100 h-1.5">
+        <div className="h-1.5 transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <div className="px-5 py-4 space-y-4">
+        {data.correct_steps.length > 0 && (
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">What you got right</p>
+            <ul className="space-y-1.5">
+              {data.correct_steps.map((step, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                  <span className="text-green-500 mt-0.5 shrink-0">✓</span>
+                  <span dangerouslySetInnerHTML={{ __html: renderMath(step) }} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {data.errors.length > 0 && (
+          <div>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Where marks were lost</p>
+            <ul className="space-y-1.5">
+              {data.errors.map((err, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
+                  <span className="text-red-500 mt-0.5 shrink-0">✗</span>
+                  <span dangerouslySetInnerHTML={{ __html: renderMath(err) }} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -61,7 +179,7 @@ export default function SessionPage() {
   const router = useRouter()
   const opening = searchParams.get('opening')
 
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [items, setItems] = useState<ChatItem[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [phase, setPhase] = useState('diagnostic')
@@ -75,47 +193,64 @@ export default function SessionPage() {
 
   useEffect(() => {
     if (opening) {
-      setMessages([{ id: 'opening', role: 'tutor', content: opening }])
+      setItems([{ kind: 'msg', id: 'opening', role: 'tutor', content: opening }])
     }
   }, [opening])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [items])
 
   const send = useCallback((signalOverride?: Signal, presetText?: string) => {
     const text = (presetText ?? input).trim()
     if (!text || streaming) return
 
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'student', content: text }
-    const alexMsgId = (Date.now() + 1).toString()
-    const alexMsg: ChatMessage = { id: alexMsgId, role: 'tutor', content: '', streaming: true }
+    const userItem: ChatItem = { kind: 'msg', id: Date.now().toString(), role: 'student', content: text }
+    const alexId = (Date.now() + 1).toString()
+    const alexItem: ChatItem = { kind: 'msg', id: alexId, role: 'tutor', content: '', streaming: true }
 
-    setMessages(prev => [...prev, userMsg, alexMsg])
+    // Mark the most recent question as answered (if the message looks like an answer)
+    setItems(prev => {
+      const next = [...prev]
+      for (let i = next.length - 1; i >= 0; i--) {
+        const it = next[i]
+        if (it.kind === 'question' && !it.answered) {
+          next[i] = { ...it, answered: true }
+          break
+        }
+      }
+      return [...next, userItem, alexItem]
+    })
     setInput('')
     setStreaming(true)
 
     abortRef.current = streamMessage(
       id, text, signalOverride ?? null,
       (token) => {
-        setMessages(prev => prev.map(m => m.id === alexMsgId ? { ...m, content: m.content + token } : m))
+        setItems(prev => prev.map(it => (it.kind === 'msg' && it.id === alexId) ? { ...it, content: it.content + token } : it))
       },
       (meta) => {
-        setMessages(prev => prev.map(m => m.id === alexMsgId ? { ...m, streaming: false } : m))
+        setItems(prev => prev.map(it => (it.kind === 'msg' && it.id === alexId) ? { ...it, streaming: false } : it))
         setPhase(meta.session_phase)
         setWeakTopics(meta.weak_topics)
-        if ((meta as any).plan_ready) setPlanReady(true)
+        if (meta.plan_ready) setPlanReady(true)
         setStreaming(false)
         textareaRef.current?.focus()
       },
       (errMsg) => {
         if (errMsg === '__RATE_LIMIT__') {
-          setMessages(prev => prev.filter(m => m.id !== alexMsgId))
+          setItems(prev => prev.filter(it => !(it.kind === 'msg' && it.id === alexId)))
           setRateLimited(true)
         } else {
-          setMessages(prev => prev.map(m => m.id === alexMsgId ? { ...m, content: errMsg, streaming: false } : m))
+          setItems(prev => prev.map(it => (it.kind === 'msg' && it.id === alexId) ? { ...it, content: errMsg, streaming: false } : it))
         }
         setStreaming(false)
+      },
+      (question) => {
+        setItems(prev => [...prev, { kind: 'question', id: `q-${Date.now()}`, data: question, answered: false }])
+      },
+      (evaluation) => {
+        setItems(prev => [...prev, { kind: 'evaluation', id: `e-${Date.now()}`, data: evaluation }])
       }
     )
   }, [id, input, streaming])
@@ -127,6 +262,7 @@ export default function SessionPage() {
   }
 
   const phaseColor = PHASE_COLOR[phase] ?? '#94A3B8'
+  const studentMsgCount = items.filter(it => it.kind === 'msg' && it.role === 'student').length
 
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
@@ -191,13 +327,24 @@ export default function SessionPage() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-6">
           <div className="max-w-2xl mx-auto">
-            {messages.map(msg => <MessageBubble key={msg.id} msg={msg} />)}
+            {items.map(item => {
+              if (item.kind === 'msg') return <MessageBubble key={item.id} item={item} />
+              if (item.kind === 'question') return (
+                <QuestionCardView
+                  key={item.id}
+                  item={item}
+                  disabled={streaming}
+                  onSubmit={(ans) => send(null, ans)}
+                />
+              )
+              return <EvaluationCardView key={item.id} data={item.data} />
+            })}
             <div ref={bottomRef} />
           </div>
         </div>
 
         {/* Quick actions */}
-        {!streaming && messages.length > 1 && (
+        {!streaming && items.length > 1 && (
           <div className="px-5 pb-3">
             <div className="max-w-2xl mx-auto flex flex-wrap gap-2">
               {QUICK_ACTIONS.map(({ label, signal, preset }) => (
@@ -319,7 +466,7 @@ export default function SessionPage() {
             />
           </div>
           <p className="text-xs text-slate-500 mb-1">Messages this session</p>
-          <p className="text-2xl font-bold" style={{ color: 'var(--navy)' }}>{messages.filter(m => m.role === 'student').length}</p>
+          <p className="text-2xl font-bold" style={{ color: 'var(--navy)' }}>{studentMsgCount}</p>
         </div>
 
         {/* Weak topics */}
