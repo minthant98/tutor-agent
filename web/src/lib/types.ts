@@ -70,3 +70,19 @@ export interface StudyPlanResponse {
   plan: StudyPlanWeek[]
   generated_at: string
 }
+
+export interface QuestionCard {
+  question: string
+  marks_available: number
+  difficulty: string
+  topic: string
+}
+
+export interface EvaluationCard {
+  marks_awarded: number
+  marks_available: number
+  score_pct: number
+  topic: string
+  correct_steps: string[]
+  errors: string[]
+}

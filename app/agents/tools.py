@@ -143,6 +143,13 @@ Return JSON only — no markdown fences, no extra text:
 {{"question": "full question text", "marks_available": integer, "mark_scheme": "full mark scheme with all marking points", "difficulty": "{difficulty}"}}"""
 
     result = await llm.generate_json(prompt)
+    # Surface as a structured question card to the frontend this turn
+    state["last_question"] = {
+        "question": result.get("question", ""),
+        "marks_available": result.get("marks_available", 0),
+        "difficulty": result.get("difficulty", difficulty),
+        "topic": topic,
+    }
     return json.dumps(result)
 
 
@@ -170,6 +177,16 @@ Return JSON only — no markdown fences:
 {{"marks_awarded": integer, "marks_available": integer, "score_pct": float, "topic": "specific topic name e.g. integration by parts", "correct_steps": ["what the student got right"], "errors": ["specific errors, or empty list if full marks"]}}"""
 
     result = await llm.generate_json(prompt)
+
+    # Surface as a structured results card to the frontend this turn
+    state["last_evaluation"] = {
+        "marks_awarded": result.get("marks_awarded", 0),
+        "marks_available": result.get("marks_available", 0),
+        "score_pct": result.get("score_pct", 0),
+        "topic": result.get("topic", ""),
+        "correct_steps": result.get("correct_steps", []),
+        "errors": result.get("errors", []),
+    }
 
     # Update weak topics in state and flag for DB mastery sync after this turn
     topic = result.get("topic")
