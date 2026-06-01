@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import AsyncGenerator, Literal
@@ -12,22 +13,23 @@ from app.workflows.state import SessionState
 logger = logging.getLogger(__name__)
 
 # Phase advances AFTER Alex responds, keyed on the completed turn count.
-# Turn count = number of full student+tutor exchanges completed.
-# e.g. after turn 0 completes (first exchange done) → move to diagnostic.
 _PHASE_SCHEDULE: dict[int, str] = {
-    0: "diagnostic",  # after intro exchange: student stated topic → calibrate
-    2: "warmup",      # after 2 exchanges of calibration → easy question
-    4: "main",        # after warmup exchange → full practice
+    0:  "diagnostic",    # after intro: student stated topic → calibrate
+    2:  "warmup",        # after calibration → easy question
+    4:  "main",          # after warmup → full practice
+    10: "consolidation", # after ~6 main exchanges → wrap up + study plan
 }
 
 
-def _advance_phase(state: SessionState) -> None:
-    """Called after a turn completes. Advances phase based on completed turn count."""
-    completed = state.get("turn_count", 0)  # already incremented
+def _advance_phase(state: SessionState) -> bool:
+    """Called after a turn completes. Returns True if phase just became consolidation."""
+    completed = state.get("turn_count", 0)
     new_phase = _PHASE_SCHEDULE.get(completed)
     if new_phase and state.get("session_phase") != new_phase:
         state["session_phase"] = new_phase
         logger.info("Phase → %s (after turn %d)", new_phase, completed)
+        return new_phase == "consolidation"
+    return False
 
 
 async def stream_response(
@@ -65,13 +67,17 @@ async def stream_response(
         "metadata": {"turn": state.get("turn_count", 0)},
     })
     state["turn_count"] = state.get("turn_count", 0) + 1
-    # Advance phase after the turn completes so Alex finishes the current phase naturally
-    _advance_phase(state)
+    entered_consolidation = _advance_phase(state)
 
     # Sync mastery to DB if an evaluation happened this turn
     if state.get("pending_mastery"):
         await _update_mastery(db, state)
         state["pending_mastery"] = None
+
+    # Auto-regenerate study plan when consolidation starts
+    if entered_consolidation:
+        asyncio.create_task(_regenerate_plan(state["student_id"], state["subject"]))
+        state["plan_ready"] = True
 
     db_session.messages = state["conversation_history"]
     db_session.topic = state.get("session_goal")
@@ -119,3 +125,52 @@ async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
 
     await db.flush()
     logger.info("Mastery: topic=%s score=%.2f ema=%.2f", topic, score, mastery.mastery_score)
+
+
+async def _regenerate_plan(student_id: str, subject: str) -> None:
+    """Fire-and-forget: regenerate study plan after consolidation starts."""
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.services.study_plan_service import generate_plan
+        from app.db.models import Student, StudyPlan
+        async with AsyncSessionLocal() as db:
+            student = await db.get(Student, student_id)
+            if not student:
+                return
+            # Remove existing plan for this subject
+            result = await db.execute(
+                select(StudyPlan).where(
+                    StudyPlan.student_id == student.id,
+                    StudyPlan.subject == subject,
+                )
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                await db.delete(existing)
+                await db.flush()
+            # Fetch weak topics from mastery state
+            wt_result = await db.execute(
+                select(MasteryState.topic).where(
+                    MasteryState.student_id == student.id,
+                    MasteryState.subject == subject,
+                    MasteryState.is_weak == True,
+                )
+            )
+            weak_topics = [r for r in wt_result.scalars()]
+            plan_data = await generate_plan(
+                subject=subject,
+                exam_board=student.exam_board,
+                exam_date=student.exam_date,
+                weak_topics=weak_topics,
+            )
+            from app.services.study_plan_service import _weeks_until
+            db.add(StudyPlan(
+                student_id=student.id,
+                subject=subject,
+                weeks_remaining=_weeks_until(student.exam_date),
+                plan=plan_data,
+            ))
+            await db.commit()
+            logger.info("Study plan regenerated for student %s after consolidation", student_id)
+    except Exception as e:
+        logger.warning("Background plan regeneration failed: %s", e)

@@ -35,6 +35,7 @@ _PHASE_INSTRUCTIONS: dict[str, str] = {
     ),
     "consolidation": (
         "Summarise what was covered today. Name specifically what clicked and what still needs work. "
+        "Tell the student their study plan on the dashboard has been updated to reflect today's session. "
         "End with one clear focus for next time."
     ),
 }
