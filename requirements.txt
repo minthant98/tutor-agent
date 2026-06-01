@@ -131,3 +131,4 @@ sentence-transformers==5.4.1
 sympy
 stripe
 sentry-sdk[fastapi]
+posthog

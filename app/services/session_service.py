@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.agents.tutor_agent import run_agent, Signal
+from app.core.telemetry import capture
 from app.db.models import MasteryState, TutorSession
 from app.workflows.state import SessionState
 
@@ -26,8 +27,15 @@ def _advance_phase(state: SessionState) -> bool:
     completed = state.get("turn_count", 0)
     new_phase = _PHASE_SCHEDULE.get(completed)
     if new_phase and state.get("session_phase") != new_phase:
+        prev_phase = state.get("session_phase")
         state["session_phase"] = new_phase
         logger.info("Phase → %s (after turn %d)", new_phase, completed)
+        capture(state["student_id"], "phase_advanced", {
+            "from": prev_phase,
+            "to": new_phase,
+            "turn_count": completed,
+            "subject": state.get("subject"),
+        })
         return new_phase == "consolidation"
     return False
 

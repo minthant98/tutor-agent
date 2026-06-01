@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # Sentry
     sentry_dsn: str = ""
 
+    # PostHog
+    posthog_key: str = ""
+    posthog_host: str = "https://us.i.posthog.com"
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

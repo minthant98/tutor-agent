@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getMe, startSession, createCheckout, getStudyPlan, regenerateStudyPlan, getActiveSession, resumeSession } from '@/lib/api'
 import { clearToken } from '@/lib/auth'
+import { identifyUser, resetUser, track } from '@/lib/posthog'
 import type { ActiveSession, Student, StudyPlanResponse } from '@/lib/types'
 
 const SUBJECT_META: Record<string, { label: string; desc: string; available: boolean }> = {
@@ -30,7 +31,16 @@ export default function DashboardPage() {
   const [resuming, setResuming] = useState(false)
 
   useEffect(() => {
-    getMe().then(setStudent).catch(() => router.push('/login'))
+    getMe()
+      .then(s => {
+        setStudent(s)
+        identifyUser(s.id, {
+          email: s.email,
+          subscription_tier: s.subscription_tier,
+          exam_board: s.exam_board,
+        })
+      })
+      .catch(() => router.push('/login'))
   }, [router])
 
   useEffect(() => {
@@ -52,6 +62,7 @@ export default function DashboardPage() {
   }
 
   async function handleUpgrade() {
+    track('checkout_started', { source: 'dashboard' })
     try {
       const { url } = await createCheckout()
       window.location.href = url
@@ -87,11 +98,13 @@ export default function DashboardPage() {
   async function handleGeneratePlan() {
     if (!student) return
     const subject = student.subjects[0] ?? 'pure_mathematics'
+    track('study_plan_requested', { subject, source: 'first_time' })
     setPlanLoading(true)
     setPlanError(false)
     try {
       const plan = await getStudyPlan(subject)
       setStudyPlan(plan)
+      track('study_plan_generated', { subject, weeks: plan.weeks_remaining })
     } catch {
       setPlanError(true)
     } finally {
@@ -126,7 +139,7 @@ export default function DashboardPage() {
               Upgrade to Pro
             </button>
           )}
-          <button onClick={() => { clearToken(); router.push('/') }} className="text-sm text-slate-500 hover:text-slate-700">
+          <button onClick={() => { track('signed_out'); resetUser(); clearToken(); router.push('/') }} className="text-sm text-slate-500 hover:text-slate-700">
             Sign out
           </button>
         </div>

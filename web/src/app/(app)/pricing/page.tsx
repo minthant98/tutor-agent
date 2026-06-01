@@ -1,6 +1,8 @@
 'use client'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createCheckout } from '@/lib/api'
+import { track } from '@/lib/posthog'
 
 const features = {
   free: [
@@ -23,7 +25,10 @@ const features = {
 export default function PricingPage() {
   const router = useRouter()
 
+  useEffect(() => { track('pricing_viewed') }, [])
+
   async function handleUpgrade() {
+    track('checkout_started', { source: 'pricing_page' })
     try {
       const { url } = await createCheckout()
       window.location.href = url

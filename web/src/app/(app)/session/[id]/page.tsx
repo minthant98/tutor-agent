@@ -4,6 +4,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { streamMessage, endSession } from '@/lib/api'
 import type { EvaluationCard, QuestionCard, Signal } from '@/lib/types'
 import { renderMath } from '@/lib/math'
+import { track } from '@/lib/posthog'
 
 type ChatItem =
   | { kind: 'msg'; id: string; role: 'student' | 'tutor'; content: string; streaming?: boolean }
@@ -224,6 +225,7 @@ export default function SessionPage() {
     setInput('')
     setStreaming(true)
 
+    if (signalOverride) track('signal_clicked', { signal: signalOverride })
     abortRef.current = streamMessage(
       id, text, signalOverride ?? null,
       (token) => {
@@ -334,7 +336,15 @@ export default function SessionPage() {
                   key={item.id}
                   item={item}
                   disabled={streaming}
-                  onSubmit={(ans) => send(null, ans)}
+                  onSubmit={(ans) => {
+                    track('question_submitted', {
+                      topic: item.data.topic,
+                      difficulty: item.data.difficulty,
+                      marks_available: item.data.marks_available,
+                      answer_length: ans.length,
+                    })
+                    send(null, ans)
+                  }}
                 />
               )
               return <EvaluationCardView key={item.id} data={item.data} />
