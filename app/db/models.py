@@ -26,6 +26,7 @@ class Student(Base):
     exam_level: Mapped[str] = mapped_column(String(20), default="a_level")
     subjects: Mapped[list] = mapped_column(JSON, default=list)
     exam_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    onboarding_complete: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Subscription
     subscription_tier: Mapped[str] = mapped_column(String(20), default="free")
