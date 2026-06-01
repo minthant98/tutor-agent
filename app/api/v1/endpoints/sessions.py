@@ -138,7 +138,7 @@ async def stream_message(
             save_session(state)
             await db.commit()
 
-            yield f"data: {json.dumps({'done': True, 'session_phase': state.get('session_phase'), 'weak_topics': state.get('weak_topics', []), 'turn_count': state.get('turn_count', 0)})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'session_phase': state.get('session_phase'), 'weak_topics': state.get('weak_topics', []), 'turn_count': state.get('turn_count', 0), 'plan_ready': state.get('plan_ready', False)})}\n\n"
 
         except Exception as e:
             logger.error("Stream error: %s", e, exc_info=True)

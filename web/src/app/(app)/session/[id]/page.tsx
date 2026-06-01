@@ -68,6 +68,7 @@ export default function SessionPage() {
   const [weakTopics, setWeakTopics] = useState<string[]>([])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [rateLimited, setRateLimited] = useState(false)
+  const [planReady, setPlanReady] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -103,6 +104,7 @@ export default function SessionPage() {
         setMessages(prev => prev.map(m => m.id === alexMsgId ? { ...m, streaming: false } : m))
         setPhase(meta.session_phase)
         setWeakTopics(meta.weak_topics)
+        if ((meta as any).plan_ready) setPlanReady(true)
         setStreaming(false)
         textareaRef.current?.focus()
       },
@@ -218,6 +220,25 @@ export default function SessionPage() {
           </div>
         )}
 
+        {/* Study plan ready banner */}
+        {planReady && (
+          <div className="px-5 pb-3">
+            <div className="max-w-2xl mx-auto rounded-2xl p-4 flex items-center justify-between gap-4" style={{ background: 'var(--navy)' }}>
+              <div>
+                <p className="text-sm font-semibold text-white">Study plan updated</p>
+                <p className="text-xs text-slate-400 mt-0.5">Your dashboard reflects today's session.</p>
+              </div>
+              <button
+                onClick={handleEnd}
+                className="shrink-0 text-sm font-semibold text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity"
+                style={{ background: 'var(--blue)' }}
+              >
+                View dashboard →
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Rate limit banner */}
         {rateLimited && (
           <div className="px-5 py-4 border-t border-slate-100 bg-white shrink-0">
@@ -318,8 +339,17 @@ export default function SessionPage() {
           )}
         </div>
 
-        {/* End session */}
-        <div className="px-5 py-5 border-t border-slate-100">
+        {/* End session / study plan */}
+        <div className="px-5 py-5 border-t border-slate-100 space-y-2">
+          {planReady && (
+            <button
+              onClick={handleEnd}
+              className="w-full text-sm font-semibold text-white py-2.5 rounded-xl hover:opacity-90 transition-opacity"
+              style={{ background: 'var(--blue)' }}
+            >
+              View study plan →
+            </button>
+          )}
           <button
             onClick={handleEnd}
             className="w-full text-sm font-medium text-slate-600 border border-slate-200 py-2.5 rounded-xl hover:border-slate-300 hover:text-slate-800 transition-colors"
