@@ -63,7 +63,7 @@ class StudentResponse(BaseModel):
             subscription_tier=student.subscription_tier,
             subscription_status=student.subscription_status,
             exam_date=student.exam_date.isoformat() if student.exam_date else None,
-            onboarding_complete=student.exam_date is not None,
+            onboarding_complete=bool(student.onboarding_complete),
         )
 
 
@@ -193,6 +193,9 @@ async def update_profile(
         except ValueError:
             from fastapi import HTTPException
             raise HTTPException(400, detail="exam_date must be ISO format: YYYY-MM-DD")
+
+    # Onboarding completes the first time the user saves their profile
+    student.onboarding_complete = True
 
     await db.flush()
     await db.commit()
