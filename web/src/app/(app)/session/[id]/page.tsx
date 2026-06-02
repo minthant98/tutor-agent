@@ -291,7 +291,12 @@ export default function SessionPage() {
             <div key={section as string} className="mb-5">
               <p className="text-xs font-semibold text-slate-500 mb-2">{section as string}</p>
               {(topics as string[]).map(t => (
-                <button key={t} className="w-full text-left text-xs text-slate-500 hover:text-slate-800 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors">
+                <button
+                  key={t}
+                  onClick={() => { send(null, `Can we work on ${t.toLowerCase()}?`); setSidebarOpen(false) }}
+                  disabled={streaming}
+                  className="w-full text-left text-xs text-slate-500 hover:text-slate-800 py-1.5 px-2 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-40"
+                >
                   {t}
                 </button>
               ))}
@@ -400,7 +405,7 @@ export default function SessionPage() {
         {rateLimited && (
           <div className="px-5 py-4 border-t border-slate-100 bg-white shrink-0">
             <div className="max-w-2xl mx-auto rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-center">
-              <p className="text-sm font-semibold text-amber-900 mb-1">You've reached your 20 message limit</p>
+              <p className="text-sm font-semibold text-amber-900 mb-1">You&apos;ve reached your 50 message limit</p>
               <p className="text-xs text-amber-700 mb-3">Upgrade to Pro for unlimited messages and full access to Alex.</p>
               <a
                 href="/pricing"
