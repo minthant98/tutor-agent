@@ -76,6 +76,7 @@ export interface QuestionCard {
   marks_available: number
   difficulty: string
   topic: string
+  mark_scheme: string
 }
 
 export interface EvaluationCard {

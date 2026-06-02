@@ -173,6 +173,7 @@ Return JSON only — no markdown fences, no extra text:
         "marks_available": result.get("marks_available", 0),
         "difficulty": result.get("difficulty", difficulty),
         "topic": topic,
+        "mark_scheme": result.get("mark_scheme", ""),
     }
     capture(state["student_id"], "question_generated", {
         "topic": topic,

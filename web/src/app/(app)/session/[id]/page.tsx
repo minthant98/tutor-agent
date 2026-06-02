@@ -65,8 +65,11 @@ function QuestionCardView({
   disabled: boolean
 }) {
   const [answer, setAnswer] = useState('')
+  const [showScheme, setShowScheme] = useState(false)
   const { data, answered } = item
   const diffColor = DIFFICULTY_COLOR[data.difficulty] ?? '#94A3B8'
+  // Auto-reveal mark scheme after the student submits their answer
+  const schemeOpen = answered || showScheme
 
   return (
     <div className="mb-6 rounded-2xl border-2 border-slate-200 bg-white overflow-hidden">
@@ -107,7 +110,27 @@ function QuestionCardView({
         </div>
       )}
       {answered && (
-        <div className="px-5 pb-4 text-xs text-slate-400 italic">Answer submitted — see results below.</div>
+        <div className="px-5 pb-3 text-xs text-slate-400 italic">Answer submitted — see results below.</div>
+      )}
+
+      {/* Mark scheme — expandable before submit, auto-open after */}
+      {data.mark_scheme && (
+        <div className="border-t border-slate-100">
+          <button
+            onClick={() => setShowScheme(s => !s)}
+            disabled={answered}
+            className="w-full px-5 py-3 flex items-center justify-between hover:bg-slate-50 transition-colors disabled:cursor-default disabled:hover:bg-transparent"
+          >
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Mark scheme</span>
+            <span className="text-xs text-slate-400">{schemeOpen ? '▾' : '▸'}</span>
+          </button>
+          {schemeOpen && (
+            <div
+              className="px-5 pb-5 text-sm leading-relaxed text-slate-700 whitespace-pre-line"
+              dangerouslySetInnerHTML={{ __html: renderMath(data.mark_scheme) }}
+            />
+          )}
+        </div>
       )}
     </div>
   )
