@@ -180,7 +180,7 @@ export default function DashboardPage() {
           <div className="rounded-2xl p-5 mb-6 flex items-center justify-between gap-4 border border-blue-100" style={{ background: '#EFF6FF' }}>
             <div>
               <p className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>You're on the free plan</p>
-              <p className="text-xs text-blue-600 mt-0.5">20 messages/day · Maths only · No session memory</p>
+              <p className="text-xs text-blue-600 mt-0.5">50 messages/day · Maths only · No session memory</p>
             </div>
             <button
               onClick={handleUpgrade}

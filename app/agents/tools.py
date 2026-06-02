@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from app.core.telemetry import capture
@@ -115,33 +116,55 @@ async def _generate_question(args: dict, state: SessionState) -> str:
     topic = args["topic"]
     difficulty = args["difficulty"]
 
-    # Retrieve real past paper examples for this topic + board to ground the question
-    examples = await retrieve(
-        query=f"{topic} exam question",
-        subject=state["subject"],
-        exam_board=state["exam_board"],
-        exam_level=state["exam_level"],
-        n_results=3,
-        doc_types=["past_paper", "mark_scheme"],
+    # Pull past paper questions and real mark schemes separately so the LLM
+    # sees both — questions for style, mark schemes for marking format.
+    question_examples, scheme_examples = await asyncio.gather(
+        retrieve(
+            query=f"{topic} exam question",
+            subject=state["subject"],
+            exam_board=state["exam_board"],
+            exam_level=state["exam_level"],
+            n_results=2,
+            doc_types=["past_paper"],
+        ),
+        retrieve(
+            query=f"{topic} mark scheme marking points",
+            subject=state["subject"],
+            exam_board=state["exam_board"],
+            exam_level=state["exam_level"],
+            n_results=2,
+            doc_types=["mark_scheme"],
+        ),
     )
 
-    example_context = ""
-    if examples:
-        snippets = [f"--- Example {i+1} ({e['metadata'].get('doc_type','')}, {e['metadata'].get('year','')}) ---\n{e['text'][:400]}"
-                    for i, e in enumerate(examples)]
-        example_context = "\n\nReal exam examples for style reference:\n" + "\n\n".join(snippets)
+    question_block = ""
+    if question_examples:
+        snippets = [f"--- Past paper example {i+1} ({e['metadata'].get('year','')}) ---\n{e['text'][:400]}"
+                    for i, e in enumerate(question_examples)]
+        question_block = "\n\nReal past paper questions for style reference:\n" + "\n\n".join(snippets)
+
+    scheme_block = ""
+    if scheme_examples:
+        snippets = [f"--- Real mark scheme {i+1} ({e['metadata'].get('year','')}) ---\n{e['text'][:600]}"
+                    for i, e in enumerate(scheme_examples)]
+        scheme_block = "\n\nReal mark schemes for marking format reference:\n" + "\n\n".join(snippets)
 
     prompt = f"""Generate one {difficulty} exam-style question for {exam_board} A-Level {subject}.
-Topic: {topic}{example_context}
+Topic: {topic}{question_block}{scheme_block}
 
-Rules:
-- Match the style, notation, and difficulty of the real examples above
-- Do NOT copy a question directly — create an original one inspired by the style
-- Include realistic numerical values and context typical of {exam_board} papers
-- Mark scheme must list every marking point clearly
+Rules for the question:
+- Match the style, notation, and difficulty of the real past paper examples
+- Do NOT copy a real question directly — create an original one inspired by the style
+- Use realistic numerical values typical of {exam_board} papers
+
+Rules for the mark scheme (MUST follow the format of the real mark schemes above):
+- Use the same per-step structure: each marking point on its own line
+- Use {exam_board}-standard mark codes — typically [M1] for method marks, [A1] for accuracy marks, [B1] for independent marks
+- Show the expected working at each step, not just the final answer
+- Total marks across all points must equal marks_available
 
 Return JSON only — no markdown fences, no extra text:
-{{"question": "full question text", "marks_available": integer, "mark_scheme": "full mark scheme with all marking points", "difficulty": "{difficulty}"}}"""
+{{"question": "full question text", "marks_available": integer, "mark_scheme": "full mark scheme matching real format above", "difficulty": "{difficulty}"}}"""
 
     result = await llm.generate_json(prompt)
     # Surface as a structured question card to the frontend this turn

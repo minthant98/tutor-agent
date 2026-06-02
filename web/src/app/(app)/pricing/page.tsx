@@ -6,7 +6,7 @@ import { track } from '@/lib/posthog'
 
 const features = {
   free: [
-    '20 messages per day',
+    '50 messages per day',
     'Pure Mathematics only',
     'Socratic tutoring',
     'Explain & Guide modes',

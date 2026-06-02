@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     frontend_url: str = "https://ascend-tutor-ai-agent.netlify.app"
 
     # Rate limiting
-    free_daily_message_limit: int = 20
+    free_daily_message_limit: int = 50
 
     # Sentry
     sentry_dsn: str = ""

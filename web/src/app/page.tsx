@@ -197,7 +197,7 @@ export default function LandingPage() {
             <p className="text-5xl font-bold mb-1" style={{ color: 'var(--navy)' }}>0 MMK</p>
             <p className="text-sm text-slate-400 mb-8">forever</p>
             <ul className="space-y-3 text-sm text-slate-600 mb-8">
-              {['20 messages per day', 'Pure Mathematics only', 'Socratic tutoring', 'Explain & Guide modes'].map(f => (
+              {['50 messages per day', 'Pure Mathematics only', 'Socratic tutoring', 'Explain & Guide modes'].map(f => (
                 <li key={f} className="flex items-center gap-2.5"><span className="text-emerald-500 font-bold">✓</span>{f}</li>
               ))}
             </ul>
