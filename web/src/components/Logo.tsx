@@ -5,10 +5,10 @@ import Link from 'next/link'
 type Size = 'sm' | 'md' | 'lg' | 'xl'
 
 const SIZES: Record<Size, { mark: number; text: string; gap: string }> = {
-  sm: { mark: 24, text: 'text-sm',  gap: 'gap-2' },
-  md: { mark: 32, text: 'text-xl',  gap: 'gap-2.5' },
-  lg: { mark: 44, text: 'text-2xl', gap: 'gap-3' },
-  xl: { mark: 80, text: 'text-5xl', gap: 'gap-4' },
+  sm: { mark: 26, text: 'text-sm',  gap: 'gap-2' },
+  md: { mark: 36, text: 'text-xl',  gap: 'gap-2.5' },
+  lg: { mark: 48, text: 'text-2xl', gap: 'gap-3' },
+  xl: { mark: 88, text: 'text-5xl', gap: 'gap-4' },
 }
 
 type Props = {
@@ -19,7 +19,7 @@ type Props = {
 }
 
 function StrideMark({ height }: { height: number }) {
-  // useId-based gradient ids so multiple <Logo>s on a page don't collide
+  // useId-based gradient ids so multiple <Logo>s on the same page don't collide
   const raw = useId().replace(/:/g, '')
   const emeraldGrad = `${raw}-e`
   const navyGrad = `${raw}-n`
@@ -27,88 +27,72 @@ function StrideMark({ height }: { height: number }) {
   return (
     <svg
       height={height}
-      viewBox="0 0 100 110"
+      viewBox="0 0 100 100"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       className="shrink-0"
     >
       <defs>
-        {/* Emerald — light at upper-left → dark at lower-right (light source from upper-left) */}
+        {/* Emerald — light upper-left → dark lower-right */}
         <linearGradient id={emeraldGrad} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%"  stopColor="#5EEAD4" />
-          <stop offset="55%" stopColor="#10B981" />
+          <stop offset="0%"   stopColor="#5EEAD4" />
+          <stop offset="55%"  stopColor="#10B981" />
           <stop offset="100%" stopColor="#047857" />
         </linearGradient>
-        {/* Navy — light at upper-right → dark at lower-left (mirrored light direction) */}
+        {/* Navy — light upper-right → dark lower-left (mirrored) */}
         <linearGradient id={navyGrad} x1="100%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%"  stopColor="#3B5278" />
-          <stop offset="55%" stopColor="#1E293B" />
+          <stop offset="0%"   stopColor="#3B5278" />
+          <stop offset="55%"  stopColor="#1E293B" />
           <stop offset="100%" stopColor="#0A1027" />
         </linearGradient>
       </defs>
 
       {/*
-        TOP EMERALD — a horizontal bar that is:
-        - rounded at the top-left corner (radius 18)
-        - has a short vertical right edge dropping down
-        - cut diagonally (45°) from upper-right to lower-left
-          forming the upper half of the S's crossbar
+        TOP EMERALD — horizontal bar at the top:
+        - rounded top-left (r=16)
+        - flat top, short right-edge drop (20 units)
+        - 45° diagonal cut from (80,20) down to (50,50) — the upper edge
+          of the S's crossbar
+        - flat bottom (50,50) → (0,50)
+        - flat left edge up to the rounded corner
       */}
       <path
-        d="
-          M 18 0
-          L 70 0
-          L 70 35
-          L 50 55
-          L 0 55
-          L 0 18
-          A 18 18 0 0 1 18 0
-          Z
-        "
+        d="M 16 0 L 80 0 L 80 20 L 50 50 L 0 50 L 0 16 A 16 16 0 0 1 16 0 Z"
         fill={`url(#${emeraldGrad})`}
       />
 
       {/*
-        Fold shadow on the emerald — a darker triangle along the diagonal
-        cut, suggesting the navy ribbon folds over the top of the emerald
-        and casts a shadow on it
+        Fold shadow on the emerald — darker triangle along the diagonal
+        suggesting the navy ribbon folds over the top of it
       */}
       <path
-        d="M 70 35 L 50 55 L 28 55 Z"
+        d="M 80 20 L 50 50 L 25 50 Z"
         fill="#064E3B"
-        opacity="0.42"
+        opacity="0.45"
       />
 
       {/*
-        BOTTOM NAVY — mirror of the emerald:
-        - starts at the end of the emerald's diagonal cut
-        - flat top edge, vertical right edge
-        - rounded at the bottom-right corner (radius 18)
-        - flat bottom edge
-        - left edge with diagonal cut at the top-left (mirror of emerald)
+        BOTTOM NAVY — horizontal bar at the bottom, mirror of the emerald:
+        - 45° diagonal cut from (50,50) down to (20,80) — lower edge of
+          the crossbar; continues the same straight line as the emerald's
+          diagonal (both have slope -1 through (50,50))
+        - flat left edge down to bottom
+        - rounded bottom-right (r=16)
+        - flat top edge back to the diagonal start
       */}
       <path
-        d="
-          M 50 55
-          L 100 55
-          L 100 92
-          A 18 18 0 0 1 82 110
-          L 30 110
-          L 30 75
-          L 50 55
-          Z
-        "
+        d="M 50 50 L 100 50 L 100 84 A 16 16 0 0 1 84 100 L 20 100 L 20 80 L 50 50 Z"
         fill={`url(#${navyGrad})`}
       />
 
       {/*
-        Subtle highlight on the navy at the fold edge — where the ribbon
-        emerges from beneath the emerald and catches a hint of light
+        Subtle highlight on the navy at its diagonal edge — hint of light
+        catching the top of the bottom fold
       */}
       <path
-        d="M 50 55 L 30 75 L 30 65 L 45 55 Z"
+        d="M 50 50 L 20 80 L 20 70 L 40 50 Z"
         fill="#475569"
-        opacity="0.35"
+        opacity="0.30"
       />
     </svg>
   )
