@@ -132,3 +132,4 @@ sympy
 stripe
 sentry-sdk[fastapi]
 posthog
+resend
