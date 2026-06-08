@@ -96,10 +96,6 @@ export default function LandingPage() {
       <section className="max-w-6xl mx-auto px-6 py-20 lg:py-28 grid lg:grid-cols-2 gap-16 items-center">
         <div>
           <Logo size="xl" showTagline className="mb-10" />
-          <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full mb-8 border" style={{ color: 'var(--blue)', borderColor: '#A7F3D0', background: '#ECFDF5' }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-            Built for Edexcel A-Level · Maths
-          </div>
           <h1 className="text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6" style={{ color: 'var(--navy)' }}>
             Your personal<br />A-Level tutor.<br />
             <span style={{ color: 'var(--blue)' }}>Available 24/7.</span>
