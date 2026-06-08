@@ -57,7 +57,7 @@ export default function ProgressPage() {
         <button onClick={() => router.push('/dashboard')} className="text-slate-400 hover:text-slate-700 font-medium text-sm flex items-center gap-2">
           ← Dashboard
         </button>
-        <span className="font-bold" style={{ color: 'var(--navy)' }}>Ascend</span>
+        <span className="font-bold" style={{ color: 'var(--navy)' }}>Stride</span>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-10">

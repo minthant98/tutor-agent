@@ -1,14 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --navy: #0F172A;
-  --navy-800: #1E293B;
+  /* Stride palette */
+  --navy: #0F172A;          /* Primary navy / primary text */
+  --navy-800: #1E293B;      /* Secondary navy (Slate Navy) */
   --navy-700: #334155;
-  --blue: #3B82F6;
-  --blue-dark: #2563EB;
-  --green: #22C55E;
+  --blue: #10B981;          /* Accent (Emerald) — var name kept for compatibility */
+  --blue-dark: #059669;     /* Emerald-700 — for hover/pressed */
+  --green: #34D399;         /* Success (Bright Emerald) */
   --purple: #7C3AED;
-  --bg: #FAFBFC;
+  --bg: #F8FAFC;            /* Off-white background */
   --bg-card: #FFFFFF;
   --border: #E2E8F0;
   --text-primary: #0F172A;
@@ -18,9 +19,8 @@
 
 @theme inline {
   --color-navy: var(--navy);
-  --color-ascend-blue: var(--blue);
-  --color-ascend-green: var(--green);
-  --color-ascend-purple: var(--purple);
+  --color-stride-emerald: var(--blue);
+  --color-stride-success: var(--green);
   --color-bg: var(--bg);
 }
 

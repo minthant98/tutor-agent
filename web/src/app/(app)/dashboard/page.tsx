@@ -128,7 +128,7 @@ export default function DashboardPage() {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Ascend</span>
+        <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Stride</span>
         <div className="flex items-center gap-3">
           {student.subscription_tier === 'free' && (
             <button
@@ -177,10 +177,10 @@ export default function DashboardPage() {
 
         {/* Free tier banner */}
         {student.subscription_tier === 'free' && (
-          <div className="rounded-2xl p-5 mb-6 flex items-center justify-between gap-4 border border-blue-100" style={{ background: '#EFF6FF' }}>
+          <div className="rounded-2xl p-5 mb-6 flex items-center justify-between gap-4 border border-emerald-100" style={{ background: '#ECFDF5' }}>
             <div>
               <p className="text-sm font-semibold" style={{ color: 'var(--navy)' }}>You're on the free plan</p>
-              <p className="text-xs text-blue-600 mt-0.5">50 messages/day · Maths only · No session memory</p>
+              <p className="text-xs text-emerald-700 mt-0.5">50 messages/day · Maths only · No session memory</p>
             </div>
             <button
               onClick={handleUpgrade}
@@ -194,7 +194,7 @@ export default function DashboardPage() {
 
         {/* Continue session */}
         {activeSession && (
-          <div className="bg-white rounded-2xl border-2 border-blue-100 p-5 mb-6">
+          <div className="bg-white rounded-2xl border-2 border-emerald-100 p-5 mb-6">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Continue where you left off</p>
             <p className="text-sm font-semibold mb-1" style={{ color: 'var(--navy)' }}>
               {activeSession.topic ?? activeSession.subject.replace(/_/g, ' ')}
@@ -228,7 +228,7 @@ export default function DashboardPage() {
                 disabled={!meta.available || starting === subject}
                 className={`flex items-center justify-between w-full px-6 py-5 rounded-2xl border-2 bg-white text-left transition-all ${
                   meta.available
-                    ? 'border-slate-100 hover:border-blue-200 hover:shadow-sm cursor-pointer'
+                    ? 'border-slate-100 hover:border-emerald-200 hover:shadow-sm cursor-pointer'
                     : 'border-slate-100 opacity-50 cursor-not-allowed'
                 }`}
               >
