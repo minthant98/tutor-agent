@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateProfile } from '@/lib/api'
+import Logo from '@/components/Logo'
 
 const SUBJECTS = [
   { id: 'pure_mathematics', label: 'Pure Mathematics', desc: 'Algebra, calculus, trigonometry & more' },
@@ -44,7 +45,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10" style={{ background: 'var(--bg)' }}>
-      <span className="text-2xl font-bold mb-8" style={{ color: 'var(--navy)' }}>Stride</span>
+      <Logo size="lg" className="mb-8" />
 
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
         {/* Progress */}

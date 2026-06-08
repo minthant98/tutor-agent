@@ -6,6 +6,7 @@ import { register, login, getMe } from '@/lib/api'
 import { setToken } from '@/lib/auth'
 import { ApiError } from '@/lib/api'
 import { identifyUser, track } from '@/lib/posthog'
+import Logo from '@/components/Logo'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -43,7 +44,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4" style={{ background: 'var(--bg)' }}>
-      <Link href="/" className="text-2xl font-bold mb-10" style={{ color: 'var(--navy)' }}>Stride</Link>
+      <Logo size="lg" href="/" className="mb-10" />
 
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
         <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--navy)' }}>Create your account</h1>

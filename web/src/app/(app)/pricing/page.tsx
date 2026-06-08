@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createCheckout } from '@/lib/api'
 import { track } from '@/lib/posthog'
+import Logo from '@/components/Logo'
 
 const features = {
   free: [
@@ -39,7 +40,7 @@ export default function PricingPage() {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-4 sticky top-0 z-10">
         <button onClick={() => router.back()} className="text-slate-400 hover:text-slate-600">←</button>
-        <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Stride</span>
+        <Logo size="md" href="/dashboard" />
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-12">
