@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     posthog_key: str = ""
     posthog_host: str = "https://us.i.posthog.com"
 
+    # Resend (transactional email)
+    resend_api_key: str = ""
+    resend_from_email: str = "Stride <onboarding@resend.dev>"
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

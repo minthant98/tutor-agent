@@ -201,3 +201,95 @@ async def update_profile(
     await db.commit()
     logger.info("Profile updated for student %s", student.id)
     return StudentResponse.from_student(student)
+
+# ── Password reset ────────────────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Generate a password reset token and email it. Always returns 202 even if
+    the email doesn't exist — prevents enumeration attacks.
+    """
+    import hashlib
+    import secrets
+    from datetime import datetime, timedelta, timezone
+    from app.core.email import send_email, password_reset_email
+    from app.db.models import PasswordResetToken
+
+    result = await db.execute(select(Student).where(Student.email == body.email.lower()))
+    student = result.scalar_one_or_none()
+
+    if student:
+        # 64-char URL-safe random token; hash before storing
+        raw_token = secrets.token_urlsafe(48)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+        token_row = PasswordResetToken(
+            student_id=student.id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+        )
+        db.add(token_row)
+        await db.commit()
+
+        reset_link = f"{settings.frontend_url}/reset-password/{raw_token}"
+        subject, html = password_reset_email(student.name, reset_link)
+        send_email(student.email, subject, html)
+        logger.info("Password reset email sent to %s", student.email)
+    else:
+        logger.info("Forgot password requested for unknown email: %s", body.email)
+
+    return {"message": "If an account exists with this email, a reset link has been sent."}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Validate a reset token and set a new password."""
+    import hashlib
+    from datetime import datetime, timezone
+    from app.db.models import PasswordResetToken
+
+    token_hash = hashlib.sha256(body.token.encode()).hexdigest()
+
+    result = await db.execute(
+        select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
+    )
+    token_row = result.scalar_one_or_none()
+
+    if not token_row:
+        raise HTTPException(400, detail="Invalid or expired reset link.")
+    if token_row.used_at is not None:
+        raise HTTPException(400, detail="This reset link has already been used.")
+    if token_row.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(400, detail="This reset link has expired. Request a new one.")
+
+    student_result = await db.execute(
+        select(Student).where(Student.id == token_row.student_id)
+    )
+    student = student_result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(400, detail="Account not found.")
+
+    student.hashed_password = hash_password(body.new_password)
+    token_row.used_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    logger.info("Password reset completed for student %s", student.id)
+
+    return {"message": "Password updated. You can now sign in with your new password."}
