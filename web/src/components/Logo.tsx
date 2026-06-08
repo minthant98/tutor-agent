@@ -1,3 +1,5 @@
+'use client'
+import { useId } from 'react'
 import Link from 'next/link'
 
 type Size = 'sm' | 'md' | 'lg' | 'xl'
@@ -17,6 +19,12 @@ type Props = {
 }
 
 function StrideMark({ height }: { height: number }) {
+  // useId-based IDs so multiple Logo instances on the same page
+  // don't collide on gradient defs
+  const raw = useId().replace(/:/g, '')
+  const emeraldGrad = `${raw}-e`
+  const navyGrad = `${raw}-n`
+
   return (
     <svg
       height={height}
@@ -25,11 +33,57 @@ function StrideMark({ height }: { height: number }) {
       aria-hidden="true"
       className="shrink-0"
     >
-      {/* TOP EMERALD — horizontal bar with the right end folded back diagonally */}
-      <path d="M 8 14 L 70 14 L 54 54 L 8 54 Z" fill="var(--blue)" />
-      {/* BOTTOM NAVY — diagonal stem coming off the emerald, opening into the bottom bar
-          which mirrors the emerald (left end folded back diagonally) */}
-      <path d="M 54 54 L 70 54 L 92 96 L 92 128 L 36 128 L 54 90 Z" fill="var(--navy)" />
+      <defs>
+        {/* Emerald ribbon gradient — lighter top-left → darker bottom-right (suggests light from upper-left) */}
+        <linearGradient id={emeraldGrad} x1="10%" y1="10%" x2="90%" y2="90%">
+          <stop offset="0%" stopColor="#34D399" />
+          <stop offset="60%" stopColor="#10B981" />
+          <stop offset="100%" stopColor="#047857" />
+        </linearGradient>
+        {/* Navy ribbon gradient — lighter top-right → darker bottom-left (mirrored light direction) */}
+        <linearGradient id={navyGrad} x1="100%" y1="10%" x2="20%" y2="100%">
+          <stop offset="0%" stopColor="#334155" />
+          <stop offset="60%" stopColor="#1E293B" />
+          <stop offset="100%" stopColor="#0F172A" />
+        </linearGradient>
+      </defs>
+
+      {/* TOP EMERALD — main ribbon face */}
+      <path
+        d="M 8 14 L 70 14 L 54 54 L 8 54 Z"
+        fill={`url(#${emeraldGrad})`}
+      />
+      {/* TOP EMERALD — fold highlight: a brighter wedge along the diagonal cut,
+          suggesting where the inside of the ribbon catches light at the crease */}
+      <path
+        d="M 70 14 L 54 54 L 62 34 L 66 22 Z"
+        fill="#6EE7B7"
+        opacity="0.55"
+      />
+      {/* TOP EMERALD — crease shadow: a thin dark line right at the fold edge */}
+      <path
+        d="M 70 14 L 54 54 L 50 50 L 66 14 Z"
+        fill="#065F46"
+        opacity="0.35"
+      />
+
+      {/* BOTTOM NAVY — main ribbon face (J-shape: diagonal stem + bottom bar) */}
+      <path
+        d="M 54 54 L 70 54 L 92 96 L 92 128 L 36 128 L 54 90 Z"
+        fill={`url(#${navyGrad})`}
+      />
+      {/* BOTTOM NAVY — fold highlight on the bottom-left crease (mirrors the emerald fold) */}
+      <path
+        d="M 36 128 L 54 90 L 50 110 L 44 122 Z"
+        fill="#475569"
+        opacity="0.55"
+      />
+      {/* BOTTOM NAVY — crease shadow */}
+      <path
+        d="M 36 128 L 54 90 L 58 94 L 40 128 Z"
+        fill="#020617"
+        opacity="0.35"
+      />
     </svg>
   )
 }
@@ -43,7 +97,7 @@ export default function Logo({
   const s = SIZES[size]
   const content = (
     <div className={`inline-flex items-center ${s.gap} ${className}`}>
-      <StrideMark px={s.mark} />
+      <StrideMark height={s.mark} />
       <div className="flex flex-col leading-none">
         <span className={`font-bold tracking-tight ${s.text}`} style={{ color: 'var(--navy)' }}>
           Stride
