@@ -44,7 +44,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10" style={{ background: 'var(--bg)' }}>
-      <span className="text-2xl font-bold mb-8" style={{ color: 'var(--navy)' }}>Ascend</span>
+      <span className="text-2xl font-bold mb-8" style={{ color: 'var(--navy)' }}>Stride</span>
 
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
         {/* Progress */}
@@ -72,7 +72,7 @@ export default function OnboardingPage() {
                     disabled={s.soon}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-left transition-all ${
                       selected
-                        ? 'bg-blue-50'
+                        ? 'bg-emerald-50'
                         : s.soon
                         ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-60'
                         : 'border-slate-200 hover:border-slate-300'
@@ -114,7 +114,7 @@ export default function OnboardingPage() {
                     disabled={b.soon}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 text-left transition-all ${
                       selected
-                        ? 'bg-blue-50'
+                        ? 'bg-emerald-50'
                         : b.soon
                         ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-60'
                         : 'border-slate-200 hover:border-slate-300'

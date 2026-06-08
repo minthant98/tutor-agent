@@ -5,7 +5,7 @@ import './globals.css'
 import PostHogInit from './posthog-init'
 
 export const metadata: Metadata = {
-  title: 'Ascend — A-Level AI Tutor',
+  title: 'Stride — A-Level AI Tutor',
   description: 'Your personal A-Level tutor. Available 24/7. Less than the cost of one tutoring hour.',
 }
 

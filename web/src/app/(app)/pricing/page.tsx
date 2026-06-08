@@ -39,7 +39,7 @@ export default function PricingPage() {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-4 sticky top-0 z-10">
         <button onClick={() => router.back()} className="text-slate-400 hover:text-slate-600">←</button>
-        <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Ascend</span>
+        <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Stride</span>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-12">

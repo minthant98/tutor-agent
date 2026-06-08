@@ -81,7 +81,7 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-slate-200 bg-white/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Ascend</span>
+          <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Stride</span>
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2">Sign in</Link>
             <Link href="/register" className="text-sm font-semibold text-white px-4 py-2 rounded-xl hover:opacity-90 transition-opacity" style={{ background: 'var(--navy)' }}>
@@ -95,7 +95,7 @@ export default function LandingPage() {
       <section className="max-w-6xl mx-auto px-6 py-20 lg:py-28 grid lg:grid-cols-2 gap-16 items-center">
         <div>
           <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full mb-8 border" style={{ color: 'var(--blue)', borderColor: '#BFDBFE', background: '#EFF6FF' }}>
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
             Built for Edexcel A-Level · Maths
           </div>
           <h1 className="text-5xl lg:text-6xl font-bold leading-tight tracking-tight mb-6" style={{ color: 'var(--navy)' }}>
@@ -227,8 +227,8 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-slate-100 bg-white py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="font-bold text-sm" style={{ color: 'var(--navy)' }}>Ascend</span>
-          <p className="text-xs text-slate-400">Built for A-Level students. Powered by AI. © 2026 Ascend.</p>
+          <span className="font-bold text-sm" style={{ color: 'var(--navy)' }}>Stride</span>
+          <p className="text-xs text-slate-400">Built for A-Level students. Powered by AI. © 2026 Stride.</p>
           <div className="flex gap-6 text-xs text-slate-400">
             <a href="#" className="hover:text-slate-600">Privacy</a>
             <a href="#" className="hover:text-slate-600">Terms</a>
