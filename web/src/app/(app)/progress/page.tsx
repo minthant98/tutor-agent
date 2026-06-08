@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getProgress } from '@/lib/api'
 import type { ProgressResponse, TopicMastery } from '@/lib/types'
+import Logo from '@/components/Logo'
 
 function MasteryBar({ topic, score }: { topic: string; score: number }) {
   const pct = Math.round(Math.min(score, 1) * 100)
@@ -57,7 +58,7 @@ export default function ProgressPage() {
         <button onClick={() => router.push('/dashboard')} className="text-slate-400 hover:text-slate-700 font-medium text-sm flex items-center gap-2">
           ← Dashboard
         </button>
-        <span className="font-bold" style={{ color: 'var(--navy)' }}>Stride</span>
+        <Logo size="md" href="/dashboard" />
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-10">

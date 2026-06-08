@@ -6,6 +6,7 @@ import { getMe, startSession, createCheckout, getStudyPlan, regenerateStudyPlan,
 import { clearToken } from '@/lib/auth'
 import { identifyUser, resetUser, track } from '@/lib/posthog'
 import type { ActiveSession, Student, StudyPlanResponse } from '@/lib/types'
+import Logo from '@/components/Logo'
 
 const SUBJECT_META: Record<string, { label: string; desc: string; available: boolean }> = {
   pure_mathematics:      { label: 'Pure Mathematics',      desc: 'Algebra, calculus, trigonometry & more', available: true },
@@ -128,7 +129,7 @@ export default function DashboardPage() {
     <div className="min-h-screen" style={{ background: 'var(--bg)' }}>
       {/* Header */}
       <header className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-        <span className="text-xl font-bold" style={{ color: 'var(--navy)' }}>Stride</span>
+        <Logo size="md" href="/dashboard" />
         <div className="flex items-center gap-3">
           {student.subscription_tier === 'free' && (
             <button
