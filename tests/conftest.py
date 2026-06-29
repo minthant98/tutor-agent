@@ -65,12 +65,28 @@ async def student(db_session):
 
 @pytest_asyncio.fixture
 async def syllabus_edexcel_seeded(db_session):
-    """Seed SyllabusTopic rows for Edexcel Pure Maths 2026.1 (22 topics)."""
+    """Ensure SyllabusTopic rows for Edexcel Pure Maths 2026.1 exist (22 topics).
+
+    Uses INSERT ... ON CONFLICT DO NOTHING so this fixture is safe to run
+    against a DB that already has the rows seeded by the Alembic migration.
+    """
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
     from app.db.models import SyllabusTopic
     from app.core.syllabus_seed import EDEXCEL_9MA0_TOPICS, SYLLABUS_VERSION
-    for t in EDEXCEL_9MA0_TOPICS:
-        db_session.add(SyllabusTopic(
-            exam_board="edexcel", subject="pure_mathematics",
-            version=SYLLABUS_VERSION, **t,
-        ))
+    import uuid
+
+    rows = [
+        {
+            "id": uuid.uuid4(),
+            "exam_board": "edexcel",
+            "subject": "pure_mathematics",
+            "version": SYLLABUS_VERSION,
+            **t,
+        }
+        for t in EDEXCEL_9MA0_TOPICS
+    ]
+    stmt = pg_insert(SyllabusTopic).values(rows).on_conflict_do_nothing(
+        constraint="uq_syllabus_board_subject_version_topic"
+    )
+    await db_session.execute(stmt)
     await db_session.flush()
