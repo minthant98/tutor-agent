@@ -4,6 +4,65 @@ import logging
 from app.core.telemetry import capture
 from app.workflows.state import SessionState
 
+# ---------------------------------------------------------------------------
+# Public async wrappers — called by segment handlers (Tasks 9–11)
+# ---------------------------------------------------------------------------
+
+
+async def generate_question(
+    state: "SessionState",
+    *,
+    topic: str,
+    difficulty: str = "medium",
+    with_hints: bool = True,
+    reframe_of: dict | None = None,
+) -> dict:
+    """Public wrapper around _generate_question for use in segment handlers.
+
+    Note: _generate_question uses topic and difficulty from args;
+    subject/exam_board/level come from state. with_hints and reframe_of are
+    not currently used by the underlying implementation but are accepted here
+    for forward compatibility.
+    """
+    args = {"topic": topic, "difficulty": difficulty}
+    raw = await _generate_question(args, state)
+    result = json.loads(raw)
+    # Normalise key so handlers can access question text as result["question"]
+    return result
+
+
+async def evaluate_answer(
+    state: "SessionState",
+    *,
+    question: str,
+    mark_scheme: str,
+    student_answer: str,
+) -> dict:
+    """Public wrapper around _evaluate_answer for use in segment handlers.
+
+    Adds a synthetic 'correct' boolean (score_pct >= 60) so handlers can
+    branch without repeating the threshold check.
+    """
+    args = {"question": question, "mark_scheme": mark_scheme, "student_answer": student_answer}
+    raw = await _evaluate_answer(args, state)
+    result = json.loads(raw)
+    # Add convenience field
+    score_pct = float(result.get("score_pct") or 0.0)
+    # score_pct may be 0–1 or 0–100 depending on LLM; _evaluate_answer normalises to 0–1 in state
+    # but the JSON it returns may still be 0–100. Normalise here too.
+    if score_pct > 1.0:
+        score_pct = score_pct / 100.0
+    result["correct"] = score_pct >= 0.6
+    # Also add feedback convenience key if not present
+    if "feedback" not in result:
+        errors = result.get("errors") or []
+        correct_steps = result.get("correct_steps") or []
+        if result["correct"]:
+            result["feedback"] = f"Well done! {' '.join(correct_steps[:1])}"
+        else:
+            result["feedback"] = f"Not quite. {' '.join(errors[:1])}"
+    return result
+
 logger = logging.getLogger(__name__)
 
 TOOL_SCHEMAS = [

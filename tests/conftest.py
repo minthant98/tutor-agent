@@ -90,3 +90,20 @@ async def syllabus_edexcel_seeded(db_session):
     )
     await db_session.execute(stmt)
     await db_session.flush()
+
+
+@pytest.fixture
+def state_factory(student):
+    from app.workflows.state import initial_state
+    def _make(**overrides):
+        s = initial_state(student_id=str(student.id), subject="pure_mathematics")
+        s.update(overrides)
+        return s
+    return _make
+
+
+@pytest.fixture
+def redis_client():
+    """Synchronous Redis client (matching get_redis() which is sync)."""
+    from app.core.redis_client import get_redis
+    return get_redis()
