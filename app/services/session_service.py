@@ -71,11 +71,12 @@ async def stream_response(
         db_session.ended_at = datetime.now(timezone.utc)
         # Invalidate today's focus cache so tomorrow regenerates fresh
         try:
-            from app.services import today_focus_service
-            redis = None  # redis not passed through; best-effort
-            # today_focus_service.invalidate_today(redis, state["student_id"], state["subject"])
-        except ImportError:
-            pass  # today_focus_service not yet deployed (Phase D)
+            from app.services.today_focus_service import invalidate_today
+            from app.core.redis_client import get_redis
+            _redis = get_redis()
+            invalidate_today(_redis, state["student_id"], state["subject"])
+        except (ImportError, Exception) as _e:
+            logger.debug("today_focus_service.invalidate_today not available: %s", _e)
         capture(state["student_id"], "session_complete", {
             "subject": state.get("subject"),
             "turn_count": state.get("turn_count"),
