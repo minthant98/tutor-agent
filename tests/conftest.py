@@ -107,3 +107,73 @@ def redis_client():
     """Synchronous Redis client (matching get_redis() which is sync)."""
     from app.core.redis_client import get_redis
     return get_redis()
+
+
+# ---------------------------------------------------------------------------
+# HTTP client fixtures for endpoint tests
+# ---------------------------------------------------------------------------
+
+@pytest_asyncio.fixture
+async def student_with_subject(db_session, syllabus_edexcel_seeded):
+    """
+    A Student + non-draft LearnerSubject(pure_mathematics/edexcel/a_level)
+    for use in dashboard endpoint tests.
+    """
+    from datetime import date as _date, timedelta as _td
+    from app.db.models import Student, LearnerSubject
+
+    s = Student(
+        email="dashboard_student@example.com",
+        name="Dashboard Student",
+        hashed_password="hashed$dummy",
+        exam_board="edexcel",
+        exam_level="a_level",
+        subjects=[],
+        onboarding_complete=True,
+    )
+    db_session.add(s)
+    await db_session.flush()
+
+    ls = LearnerSubject(
+        student_id=s.id,
+        subject="pure_mathematics",
+        exam_board="edexcel",
+        exam_level="a_level",
+        target_grade="A*",
+        syllabus_version="2026.1",
+        exam_date=_date.today() + _td(days=90),
+        is_draft=False,
+    )
+    db_session.add(ls)
+    await db_session.flush()
+
+    return s
+
+
+@pytest_asyncio.fixture
+async def authed_client(db_session, student_with_subject):
+    """
+    httpx AsyncClient pointed at the FastAPI app with:
+    - DB dependency overridden to use the test db_session
+    - Authorization header pre-set for student_with_subject
+    """
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.db.database import get_db
+    from app.core.auth import create_access_token
+
+    token = create_access_token({"sub": str(student_with_subject.id)})
+
+    async def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db, None)
