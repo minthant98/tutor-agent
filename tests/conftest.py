@@ -177,3 +177,123 @@ async def authed_client(db_session, student_with_subject):
             yield client
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+@pytest_asyncio.fixture
+async def unauth_client(db_session):
+    """
+    httpx AsyncClient pointed at the FastAPI app with NO auth header.
+    DB dependency is still overridden to use the test session.
+    """
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.db.database import get_db
+
+    async def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+@pytest_asyncio.fixture
+async def admin_student(db_session):
+    """A Student with is_admin=True for admin endpoint tests."""
+    s = Student(
+        email="admin@test.example.com",
+        name="Admin User",
+        hashed_password="hashed$dummy",
+        exam_board="edexcel",
+        exam_level="a_level",
+        subjects=[],
+        onboarding_complete=True,
+        is_admin=True,
+    )
+    db_session.add(s)
+    await db_session.flush()
+    return s
+
+
+@pytest_asyncio.fixture
+async def admin_authed_client(db_session, admin_student):
+    """
+    httpx AsyncClient with Authorization header for an admin student.
+    DB dependency is overridden to use the test session.
+    """
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.db.database import get_db
+    from app.core.auth import create_access_token
+
+    token = create_access_token({"sub": str(admin_student.id)})
+
+    async def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+@pytest_asyncio.fixture
+async def empty_db(db_session):
+    """Fixture that just yields the db_session — named for clarity in readyz tests where we need an empty/unseeded DB."""
+    yield db_session
+
+
+@pytest_asyncio.fixture
+async def fresh_student(db_session):
+    """A Student with NO subjects — simulates a newly registered user before onboarding."""
+    s = Student(
+        email="fresh_student@example.com",
+        name="Fresh Student",
+        hashed_password="hashed$dummy",
+        exam_board="edexcel",
+        exam_level="a_level",
+        subjects=[],
+        onboarding_complete=False,
+    )
+    db_session.add(s)
+    await db_session.flush()
+    return s
+
+
+@pytest_asyncio.fixture
+async def onboarding_client(db_session, fresh_student):
+    """
+    httpx AsyncClient for onboarding wizard tests — uses a fresh student with no subjects.
+    """
+    from httpx import AsyncClient, ASGITransport
+    from app.main import app
+    from app.db.database import get_db
+    from app.core.auth import create_access_token
+
+    token = create_access_token({"sub": str(fresh_student.id)})
+
+    async def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {token}"},
+        ) as client:
+            yield client
+    finally:
+        app.dependency_overrides.pop(get_db, None)

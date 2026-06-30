@@ -23,6 +23,7 @@ from app.api.v1.endpoints.sessions import router as sessions_router
 from app.api.v1.endpoints.admin import router as admin_router
 from app.api.v1.endpoints.study_plan import router as study_plan_router
 from app.api.v1.endpoints.dashboard import router as dashboard_router
+from app.api.v1.endpoints.onboarding import router as onboarding_router
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ app.include_router(sessions_router, prefix=settings.api_v1_prefix)
 app.include_router(admin_router, prefix=settings.api_v1_prefix)
 app.include_router(study_plan_router, prefix=settings.api_v1_prefix)
 app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
+app.include_router(onboarding_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")
