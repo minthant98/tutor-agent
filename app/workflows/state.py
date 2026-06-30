@@ -8,6 +8,17 @@ class Message(TypedDict):
     metadata: dict[str, Any]
 
 
+class Segment(TypedDict):
+    idx: int
+    intent: Literal["diagnose", "teach", "reinforce", "assess", "revise", "consolidate"]
+    handler: Literal["diagnostic_question", "practice", "review", "mistakes"]
+    topic: str | None
+    why: str
+    target_minutes: int
+    status: Literal["pending", "in_progress", "done", "error"]
+    config: dict[str, Any]
+
+
 class SessionState(TypedDict):
     # Identity
     session_id: str
@@ -42,6 +53,14 @@ class SessionState(TypedDict):
     turn_count: int
     error: str | None
 
+    # Segment-based engine (v2)
+    session_type: Literal["practice", "diagnostic"]
+    session_version: int  # 1 = legacy single-phase, 2 = segment-based
+    segment_plan: list[Segment]
+    current_segment_idx: int
+    segment_progress: dict[str, Any]  # per-handler scratch state
+    preferences: dict[str, bool]      # injected from Student.preferences at session start
+
 
 def initial_state(
     student_id: str,
@@ -53,6 +72,12 @@ def initial_state(
     weak_topics: list[str] | None = None,
     mastery_scores: dict[str, float] | None = None,
     session_summaries: list[str] | None = None,
+    session_type: str = "practice",
+    session_version: int = 2,
+    segment_plan: list | None = None,
+    current_segment_idx: int = 0,
+    segment_progress: dict | None = None,
+    preferences: dict | None = None,
 ) -> SessionState:
     return {  # type: ignore[return-value]
         "session_id": str(uuid.uuid4()),
@@ -74,4 +99,10 @@ def initial_state(
         "last_evaluation": None,
         "turn_count": 0,
         "error": None,
+        "session_type": session_type,
+        "session_version": session_version,
+        "segment_plan": segment_plan or [],
+        "current_segment_idx": current_segment_idx,
+        "segment_progress": segment_progress or {},
+        "preferences": preferences or {},
     }
