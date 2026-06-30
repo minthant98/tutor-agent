@@ -54,6 +54,22 @@ def _days_to_exam(state: SessionState) -> str:
         return "date not set"
 
 
+def _preferences_block(prefs: dict) -> str:
+    if not prefs:
+        return ""
+    lines = ["<student_preferences>"]
+    if prefs.get("worked_examples"):
+        lines.append("- This student learns best from worked examples. When introducing a concept, show a complete worked example before asking them to attempt their own.")
+    if prefs.get("step_by_step"):
+        lines.append("- This student prefers granular step-by-step explanations. Break hints into the smallest meaningful steps.")
+    if prefs.get("visual"):
+        lines.append("- This student finds diagrams helpful. Where a diagram would clarify, describe one in ASCII or LaTeX even if not explicitly asked.")
+    if prefs.get("practice"):
+        lines.append("- This student learns by doing. Keep explanations short; prioritise getting them to a question quickly.")
+    lines.append("</student_preferences>")
+    return "\n".join(lines)
+
+
 def _build_system_prompt(state: SessionState, signal: Signal) -> str:
     weak = state.get("weak_topics", [])
     summaries = state.get("session_summaries", [])
@@ -113,7 +129,8 @@ Tools:
 
 IMPORTANT — UI cards:
 - When you call generate_question, the question is shown to the student as a structured card with a 'Submit answer' button. Do NOT repeat the question text in your response. Just introduce it briefly (e.g. "Here's one to try — give it a go below.").
-- When you call evaluate_answer, a results card shows the marks awarded, what they got right, and the errors. Do NOT recite the marks or list the errors — that's already shown. Instead, give Socratic remediation: focus on ONE error, ask a leading question about why it happened, and help them understand it."""
+- When you call evaluate_answer, a results card shows the marks awarded, what they got right, and the errors. Do NOT recite the marks or list the errors — that's already shown. Instead, give Socratic remediation: focus on ONE error, ask a leading question about why it happened, and help them understand it.
+{_preferences_block(state.get("preferences", {}))}"""
 
 
 def _build_messages(state: SessionState, signal: Signal) -> list[dict]:
