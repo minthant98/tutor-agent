@@ -49,6 +49,9 @@ class SessionState(TypedDict):
     last_question: dict[str, Any] | None
     last_evaluation: dict[str, Any] | None
 
+    # Structured cards from the orchestrator (new path); emitted as SSE then cleared each turn
+    structured_cards: list[dict[str, Any]]
+
     # Meta
     turn_count: int
     error: str | None
@@ -97,6 +100,7 @@ def initial_state(
         "pending_mastery": None,
         "last_question": None,
         "last_evaluation": None,
+        "structured_cards": [],
         "turn_count": 0,
         "error": None,
         "session_type": session_type,

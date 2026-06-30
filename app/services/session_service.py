@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import AsyncGenerator, Literal
+from typing import TYPE_CHECKING, AsyncGenerator, Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,7 +10,10 @@ from app.agents import orchestrator
 from app.agents.tutor_agent import Signal
 from app.core.telemetry import capture
 from app.db.models import MasteryState, TutorSession
-from app.workflows.state import SessionState
+from app.workflows.state import SessionState, initial_state
+
+if TYPE_CHECKING:
+    from app.db.models import Student
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,10 @@ async def stream_response(
     mastery_updates = result.get("mastery_updates", [])
     state_changes = result.get("state_changes", {})
     session_complete = result.get("session_complete", False)
+
+    # Stash structured_cards in state so the endpoint can emit them as SSE events.
+    # The endpoint clears this field after reading it each turn.
+    state["structured_cards"] = result.get("structured_cards", [])
 
     # Apply state_changes from orchestrator
     for key, value in state_changes.items():
@@ -187,3 +194,50 @@ async def _regenerate_plan(student_id: str, subject: str) -> None:
             logger.info("Study plan regenerated for student %s", student_id)
     except Exception as e:
         logger.warning("Background plan regeneration failed: %s", e)
+
+
+def _rebuild_resume_state(
+    session_id: str,
+    student: "Student",
+    db_session: TutorSession,
+    messages: list,
+    weak_topics: list[str],
+) -> SessionState:
+    """Pure helper: rebuild Redis state from DB rows on session resume.
+
+    Extracted from the resume_session endpoint so it can be unit-tested
+    without HTTP context (no FastAPI auth imports).
+    """
+    turn_count = len([m for m in messages if m.get("role") == "student"])
+
+    # Determine phase from turn count
+    if turn_count >= 4:
+        phase = "main"
+    elif turn_count >= 2:
+        phase = "warmup"
+    elif turn_count >= 1:
+        phase = "diagnostic"
+    else:
+        phase = "intro"
+
+    state = initial_state(
+        student_id=str(student.id),
+        subject=db_session.subject,
+        exam_board=student.exam_board,
+        exam_level=student.exam_level,
+        subscription_tier=student.subscription_tier,
+        exam_date=str(student.exam_date) if student.exam_date else None,
+        weak_topics=weak_topics,
+    )
+    state["session_id"] = session_id
+    state["conversation_history"] = messages
+    state["turn_count"] = turn_count
+    state["session_phase"] = phase
+    state["session_goal"] = db_session.topic
+    # Restore persisted session structure so the segment engine resumes correctly.
+    state["preferences"] = student.preferences or {}
+    state["session_type"] = db_session.session_type
+    state["session_version"] = db_session.session_version
+    state["segment_plan"] = db_session.segment_plan or []
+    state["current_segment_idx"] = db_session.current_segment_idx
+    return state

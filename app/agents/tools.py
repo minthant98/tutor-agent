@@ -226,14 +226,6 @@ Return JSON only — no markdown fences, no extra text:
 {{"question": "full question text", "marks_available": integer, "mark_scheme": "full mark scheme matching real format above", "difficulty": "{difficulty}"}}"""
 
     result = await llm.generate_json(prompt)
-    # Surface as a structured question card to the frontend this turn
-    state["last_question"] = {
-        "question": result.get("question", ""),
-        "marks_available": result.get("marks_available", 0),
-        "difficulty": result.get("difficulty", difficulty),
-        "topic": topic,
-        "mark_scheme": result.get("mark_scheme", ""),
-    }
     capture(state["student_id"], "question_generated", {
         "topic": topic,
         "difficulty": difficulty,
@@ -269,15 +261,6 @@ Return JSON only — no markdown fences:
 
     result = await llm.generate_json(prompt)
 
-    # Surface as a structured results card to the frontend this turn
-    state["last_evaluation"] = {
-        "marks_awarded": result.get("marks_awarded", 0),
-        "marks_available": result.get("marks_available", 0),
-        "score_pct": result.get("score_pct", 0),
-        "topic": result.get("topic", ""),
-        "correct_steps": result.get("correct_steps", []),
-        "errors": result.get("errors", []),
-    }
     capture(state["student_id"], "answer_evaluated", {
         "topic": result.get("topic", ""),
         "marks_awarded": result.get("marks_awarded", 0),
@@ -288,20 +271,5 @@ Return JSON only — no markdown fences:
         "exam_board": state.get("exam_board"),
         "sympy_method": sympy_result.get("method"),
     })
-
-    # Update weak topics in state and flag for DB mastery sync after this turn
-    topic = result.get("topic")
-    score = float(result.get("score_pct") or 0.0)
-    # LLM returns score_pct as 0–100; normalise to 0–1 for storage
-    if score > 1.0:
-        score = score / 100.0
-    if topic:
-        state["pending_mastery"] = {"topic": topic, "score": score}
-        weak = list(state.get("weak_topics", []))
-        if score < 0.5 and topic not in weak:
-            weak.append(topic)
-        elif score >= 0.8 and topic in weak:
-            weak.remove(topic)
-        state["weak_topics"] = weak
 
     return json.dumps(result)
