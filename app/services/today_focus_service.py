@@ -248,8 +248,13 @@ async def build_segment_plan(
 # Cache helpers
 # ---------------------------------------------------------------------------
 
-def _cache_key(student_id, subject: str, focus_date: date) -> str:
-    return f"today_focus:{student_id}:{subject}:{focus_date.isoformat()}"
+def _cache_key(student_id, subject: str, focus_date) -> str:
+    """Build cache key. focus_date may be a date object or an ISO string."""
+    if hasattr(focus_date, "isoformat"):
+        date_str = focus_date.isoformat()
+    else:
+        date_str = str(focus_date)  # already an ISO string
+    return f"today_focus:{student_id}:{subject}:{date_str}"
 
 
 async def _get_session_count(db: AsyncSession, student_id: UUID, subject: str) -> int:
