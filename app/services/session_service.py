@@ -6,38 +6,13 @@ from typing import AsyncGenerator, Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.agents.tutor_agent import run_agent, Signal
+from app.agents import orchestrator
+from app.agents.tutor_agent import Signal
 from app.core.telemetry import capture
 from app.db.models import MasteryState, TutorSession
 from app.workflows.state import SessionState
 
 logger = logging.getLogger(__name__)
-
-# Phase advances AFTER Alex responds, keyed on the completed turn count.
-_PHASE_SCHEDULE: dict[int, str] = {
-    0:  "diagnostic",    # after intro: student stated topic → calibrate
-    2:  "warmup",        # after calibration → easy question
-    4:  "main",          # after warmup → full practice
-    10: "consolidation", # after ~6 main exchanges → wrap up + study plan
-}
-
-
-def _advance_phase(state: SessionState) -> bool:
-    """Called after a turn completes. Returns True if phase just became consolidation."""
-    completed = state.get("turn_count", 0)
-    new_phase = _PHASE_SCHEDULE.get(completed)
-    if new_phase and state.get("session_phase") != new_phase:
-        prev_phase = state.get("session_phase")
-        state["session_phase"] = new_phase
-        logger.info("Phase → %s (after turn %d)", new_phase, completed)
-        capture(state["student_id"], "phase_advanced", {
-            "from": prev_phase,
-            "to": new_phase,
-            "turn_count": completed,
-            "subject": state.get("subject"),
-        })
-        return new_phase == "consolidation"
-    return False
 
 
 async def stream_response(
@@ -48,9 +23,9 @@ async def stream_response(
     signal: Signal = None,
 ) -> AsyncGenerator[str, None]:
     """
-    Run one agent turn. Yields response tokens for SSE streaming.
-    Handles all state mutation, DB mastery sync, and session persistence
-    after the final token is yielded.
+    Run one agent turn via the segment orchestrator.
+    Yields response tokens for SSE streaming.
+    Handles all state mutation, DB mastery sync, and session persistence.
     """
     state["current_input"] = student_message
     state["conversation_history"].append({
@@ -59,51 +34,71 @@ async def stream_response(
         "metadata": {"turn": state.get("turn_count", 0)},
     })
 
-    # Capture what the student wants to work on from their very first reply
+    # Capture session goal from the very first reply
     if state.get("turn_count", 0) == 0 and not state.get("session_goal"):
         state["session_goal"] = student_message[:300]
 
-    response_parts: list[str] = []
-    async for token in run_agent(state, signal):
-        response_parts.append(token)
-        yield token
+    # --- Segment engine turn ---
+    result = await orchestrator.step_session(state, db, None, student_message)
 
-    response_text = "".join(response_parts)
+    tutor_message = result.get("tutor_message") or ""
+    mastery_updates = result.get("mastery_updates", [])
+    state_changes = result.get("state_changes", {})
+    session_complete = result.get("session_complete", False)
+
+    # Apply state_changes from orchestrator
+    for key, value in state_changes.items():
+        state[key] = value  # type: ignore[literal-required]
+
+    # Stream the tutor message token by token (chunk into words for smooth SSE)
+    for word in tutor_message.split(" "):
+        chunk = word + " "
+        yield chunk
+
     state["conversation_history"].append({
         "role": "tutor",
-        "content": response_text,
+        "content": tutor_message,
         "metadata": {"turn": state.get("turn_count", 0)},
     })
     state["turn_count"] = state.get("turn_count", 0) + 1
-    entered_consolidation = _advance_phase(state)
 
-    # Sync mastery to DB if an evaluation happened this turn
-    if state.get("pending_mastery"):
-        await _update_mastery(db, state)
-        state["pending_mastery"] = None
+    # Sync mastery to DB for all mastery_updates from this turn
+    for update in mastery_updates:
+        await _apply_mastery_update(db, state, update)
 
-    # Auto-regenerate study plan when consolidation starts
-    if entered_consolidation:
-        asyncio.create_task(_regenerate_plan(state["student_id"], state["subject"]))
-        state["plan_ready"] = True
+    # Handle session completion
+    if session_complete:
+        db_session.ended_at = datetime.now(timezone.utc)
+        # Invalidate today's focus cache so tomorrow regenerates fresh
+        try:
+            from app.services import today_focus_service
+            redis = None  # redis not passed through; best-effort
+            # today_focus_service.invalidate_today(redis, state["student_id"], state["subject"])
+        except ImportError:
+            pass  # today_focus_service not yet deployed (Phase D)
+        capture(state["student_id"], "session_complete", {
+            "subject": state.get("subject"),
+            "turn_count": state.get("turn_count"),
+            "segment_count": len(state.get("segment_plan", [])),
+        })
 
     db_session.messages = state["conversation_history"]
     db_session.topic = state.get("session_goal")
     await db.flush()
 
 
-async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
-    pending = state.get("pending_mastery")
-    if not pending:
+async def _apply_mastery_update(db: AsyncSession, state: SessionState, update: dict) -> None:
+    """Apply a single mastery update dict (from a handler's mastery_updates list) to DB."""
+    topic = update.get("topic")
+    if not topic:
         return
 
-    topic = pending["topic"]
-    score = float(pending["score"])
     student_id = state["student_id"]
+    subject = state["subject"]
 
     stmt = select(MasteryState).where(
         MasteryState.student_id == student_id,
-        MasteryState.subject == state["subject"],
+        MasteryState.subject == subject,
         MasteryState.topic == topic,
     )
     result = await db.execute(stmt)
@@ -112,7 +107,7 @@ async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
     if mastery is None:
         mastery = MasteryState(
             student_id=student_id,
-            subject=state["subject"],
+            subject=subject,
             topic=topic,
             mastery_score=0.0,
             total_attempts=0,
@@ -124,19 +119,30 @@ async def _update_mastery(db: AsyncSession, state: SessionState) -> None:
     current_score = float(mastery.mastery_score or 0.0)
     current_streak = int(mastery.correct_streak or 0)
 
-    alpha = 0.3
-    mastery.mastery_score = alpha * score + (1 - alpha) * current_score
-    mastery.total_attempts = int(mastery.total_attempts or 0) + 1
+    # Handlers use either absolute mastery_score or delta (mastery_score_delta)
+    if "mastery_score" in update:
+        # Absolute score from diagnostic handler (e.g., 0.6 or 0.2)
+        new_score = float(update["mastery_score"])
+        alpha = 0.3
+        mastery.mastery_score = alpha * new_score + (1 - alpha) * current_score
+    elif "mastery_score_delta" in update:
+        # Delta from practice/review handlers
+        delta = float(update["mastery_score_delta"])
+        mastery.mastery_score = max(0.0, min(1.0, current_score + delta))
+
+    correct_delta = int(update.get("correct_delta", 0))
+    attempt_delta = int(update.get("attempt_delta", 1))
+    mastery.total_attempts = int(mastery.total_attempts or 0) + attempt_delta
     mastery.last_reviewed_at = datetime.now(timezone.utc)
-    mastery.correct_streak = current_streak + 1 if score >= 0.6 else 0
+    mastery.correct_streak = current_streak + correct_delta if correct_delta > 0 else 0
     mastery.is_weak = mastery.mastery_score < 0.5
 
     await db.flush()
-    logger.info("Mastery: topic=%s score=%.2f ema=%.2f", topic, score, mastery.mastery_score)
+    logger.info("Mastery: topic=%s score=%.2f", topic, mastery.mastery_score)
 
 
 async def _regenerate_plan(student_id: str, subject: str) -> None:
-    """Fire-and-forget: regenerate study plan after consolidation starts."""
+    """Fire-and-forget: regenerate study plan when needed."""
     try:
         from app.db.database import AsyncSessionLocal
         from app.services.study_plan_service import generate_plan
@@ -145,7 +151,6 @@ async def _regenerate_plan(student_id: str, subject: str) -> None:
             student = await db.get(Student, student_id)
             if not student:
                 return
-            # Remove existing plan for this subject
             result = await db.execute(
                 select(StudyPlan).where(
                     StudyPlan.student_id == student.id,
@@ -156,7 +161,6 @@ async def _regenerate_plan(student_id: str, subject: str) -> None:
             if existing:
                 await db.delete(existing)
                 await db.flush()
-            # Fetch weak topics from mastery state
             wt_result = await db.execute(
                 select(MasteryState.topic).where(
                     MasteryState.student_id == student.id,
@@ -179,6 +183,6 @@ async def _regenerate_plan(student_id: str, subject: str) -> None:
                 plan=plan_data,
             ))
             await db.commit()
-            logger.info("Study plan regenerated for student %s after consolidation", student_id)
+            logger.info("Study plan regenerated for student %s", student_id)
     except Exception as e:
         logger.warning("Background plan regeneration failed: %s", e)
