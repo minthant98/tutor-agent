@@ -53,10 +53,34 @@ async def start_session(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
+    # Build diagnostic segment plan if requested
+    diagnostic_plan: list[dict] = []
+    if body.session_type == "diagnostic":
+        from app.core.syllabus_seed import EDEXCEL_9MA0_TOPICS
+        diagnostic_plan = [
+            {
+                "idx": i,
+                "intent": "diagnose",
+                "handler": "diagnostic_question",
+                "topic": t["topic_id"],
+                "topic_name": t["topic_name"],
+                "why": "Baseline diagnostic",
+                "target_minutes": 2,
+                "status": "in_progress" if i == 0 else "pending",
+                "config": {},
+            }
+            for i, t in enumerate(EDEXCEL_9MA0_TOPICS[:7])
+        ]
+
+    # Use provided segment_plan or the diagnostic plan
+    resolved_plan = body.segment_plan or (diagnostic_plan if body.session_type == "diagnostic" else [])
+
     db_session = TutorSession(
         student_id=student.id,
         subject=body.subject,
         mode="explain",
+        session_type=body.session_type,
+        segment_plan=resolved_plan,
     )
     db.add(db_session)
     await db.flush()
@@ -79,11 +103,23 @@ async def start_session(
 
     opening = await generate_opening_message(state)
 
-    state["conversation_history"].append({
+    # Build conversation history seed
+    history: list[dict] = []
+
+    # Store return_to as system metadata (for session-end handler)
+    if body.return_to:
+        history.append({
+            "role": "system",
+            "content": f"return_to:{body.return_to}",
+        })
+
+    history.append({
         "role": "tutor",
         "content": opening,
         "metadata": {"turn": 0, "type": "opening"},
     })
+
+    state["conversation_history"].extend(history)
 
     save_session(state)
     await db.commit()
