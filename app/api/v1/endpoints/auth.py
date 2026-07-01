@@ -48,6 +48,7 @@ class StudentResponse(BaseModel):
     subscription_status: str
     exam_date: str | None
     onboarding_complete: bool
+    is_admin: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -64,6 +65,7 @@ class StudentResponse(BaseModel):
             subscription_status=student.subscription_status,
             exam_date=student.exam_date.isoformat() if student.exam_date else None,
             onboarding_complete=bool(student.onboarding_complete),
+            is_admin=bool(student.is_admin),
         )
 
 

@@ -9,6 +9,7 @@ export interface Student {
   subscription_status: 'active' | 'trialing' | 'past_due' | 'cancelled'
   exam_date: string | null
   onboarding_complete: boolean
+  is_admin: boolean
 }
 
 export interface Message {
