@@ -4,6 +4,67 @@ import logging
 from app.core.telemetry import capture
 from app.workflows.state import SessionState
 
+# ---------------------------------------------------------------------------
+# Public async wrappers — called by segment handlers (Tasks 9–11)
+# ---------------------------------------------------------------------------
+
+
+async def generate_question(
+    state: "SessionState",
+    *,
+    topic: str,
+    difficulty: str = "medium",
+    with_hints: bool = True,
+    reframe_of: dict | None = None,
+) -> dict:
+    """Public wrapper around _generate_question for use in segment handlers.
+
+    Note: _generate_question uses topic and difficulty from args;
+    subject/exam_board/level come from state. reframe_of, if provided, is
+    passed through so the LLM produces a variant of the original question
+    rather than a fresh one.
+    """
+    args = {"topic": topic, "difficulty": difficulty}
+    if reframe_of is not None:
+        args["reframe_of"] = reframe_of  # type: ignore[assignment]
+    raw = await _generate_question(args, state)
+    result = json.loads(raw)
+    # Normalise key so handlers can access question text as result["question"]
+    return result
+
+
+async def evaluate_answer(
+    state: "SessionState",
+    *,
+    question: str,
+    mark_scheme: str,
+    student_answer: str,
+) -> dict:
+    """Public wrapper around _evaluate_answer for use in segment handlers.
+
+    Adds a synthetic 'correct' boolean (score_pct >= 60) so handlers can
+    branch without repeating the threshold check.
+    """
+    args = {"question": question, "mark_scheme": mark_scheme, "student_answer": student_answer}
+    raw = await _evaluate_answer(args, state)
+    result = json.loads(raw)
+    # Add convenience field
+    score_pct = float(result.get("score_pct") or 0.0)
+    # score_pct may be 0–1 or 0–100 depending on LLM; _evaluate_answer normalises to 0–1 in state
+    # but the JSON it returns may still be 0–100. Normalise here too.
+    if score_pct > 1.0:
+        score_pct = score_pct / 100.0
+    result["correct"] = score_pct >= 0.6
+    # Also add feedback convenience key if not present
+    if "feedback" not in result:
+        errors = result.get("errors") or []
+        correct_steps = result.get("correct_steps") or []
+        if result["correct"]:
+            result["feedback"] = f"Well done! {' '.join(correct_steps[:1])}"
+        else:
+            result["feedback"] = f"Not quite. {' '.join(errors[:1])}"
+    return result
+
 logger = logging.getLogger(__name__)
 
 TOOL_SCHEMAS = [
@@ -149,8 +210,17 @@ async def _generate_question(args: dict, state: SessionState) -> str:
                     for i, e in enumerate(scheme_examples)]
         scheme_block = "\n\nReal mark schemes for marking format reference:\n" + "\n\n".join(snippets)
 
+    reframe_block = ""
+    if reframe_of := args.get("reframe_of"):
+        reframe_block = (
+            f"\n\nReframe this original question in a slightly different way, "
+            f"testing the same concept with different numbers or context:\n"
+            f"Original question: {reframe_of['question']}\n"
+            f"Original mark scheme: {reframe_of['mark_scheme']}\n"
+        )
+
     prompt = f"""Generate one {difficulty} exam-style question for {exam_board} A-Level {subject}.
-Topic: {topic}{question_block}{scheme_block}
+Topic: {topic}{question_block}{scheme_block}{reframe_block}
 
 Rules for the question:
 - Match the style, notation, and difficulty of the real past paper examples
@@ -167,14 +237,6 @@ Return JSON only — no markdown fences, no extra text:
 {{"question": "full question text", "marks_available": integer, "mark_scheme": "full mark scheme matching real format above", "difficulty": "{difficulty}"}}"""
 
     result = await llm.generate_json(prompt)
-    # Surface as a structured question card to the frontend this turn
-    state["last_question"] = {
-        "question": result.get("question", ""),
-        "marks_available": result.get("marks_available", 0),
-        "difficulty": result.get("difficulty", difficulty),
-        "topic": topic,
-        "mark_scheme": result.get("mark_scheme", ""),
-    }
     capture(state["student_id"], "question_generated", {
         "topic": topic,
         "difficulty": difficulty,
@@ -210,15 +272,6 @@ Return JSON only — no markdown fences:
 
     result = await llm.generate_json(prompt)
 
-    # Surface as a structured results card to the frontend this turn
-    state["last_evaluation"] = {
-        "marks_awarded": result.get("marks_awarded", 0),
-        "marks_available": result.get("marks_available", 0),
-        "score_pct": result.get("score_pct", 0),
-        "topic": result.get("topic", ""),
-        "correct_steps": result.get("correct_steps", []),
-        "errors": result.get("errors", []),
-    }
     capture(state["student_id"], "answer_evaluated", {
         "topic": result.get("topic", ""),
         "marks_awarded": result.get("marks_awarded", 0),
@@ -229,20 +282,5 @@ Return JSON only — no markdown fences:
         "exam_board": state.get("exam_board"),
         "sympy_method": sympy_result.get("method"),
     })
-
-    # Update weak topics in state and flag for DB mastery sync after this turn
-    topic = result.get("topic")
-    score = float(result.get("score_pct") or 0.0)
-    # LLM returns score_pct as 0–100; normalise to 0–1 for storage
-    if score > 1.0:
-        score = score / 100.0
-    if topic:
-        state["pending_mastery"] = {"topic": topic, "score": score}
-        weak = list(state.get("weak_topics", []))
-        if score < 0.5 and topic not in weak:
-            weak.append(topic)
-        elif score >= 0.8 and topic in weak:
-            weak.remove(topic)
-        state["weak_topics"] = weak
 
     return json.dumps(result)

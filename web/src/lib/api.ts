@@ -198,4 +198,7 @@ export function streamMessage(
   return () => controller.abort()
 }
 
+/** Alias used by typed API client modules under lib/api/ */
+export const apiFetch = request
+
 export { ApiError }

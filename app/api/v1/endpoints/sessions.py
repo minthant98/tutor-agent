@@ -22,7 +22,7 @@ from app.schemas.schemas import (
     TopicMastery,
 )
 from app.agents.tutor_agent import generate_opening_message
-from app.services.session_service import stream_response
+from app.services.session_service import stream_response, _rebuild_resume_state
 from app.workflows.state import SessionState, initial_state
 
 logger = logging.getLogger(__name__)
@@ -53,10 +53,34 @@ async def start_session(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
+    # Build diagnostic segment plan if requested
+    diagnostic_plan: list[dict] = []
+    if body.session_type == "diagnostic":
+        from app.core.syllabus_seed import EDEXCEL_9MA0_TOPICS
+        diagnostic_plan = [
+            {
+                "idx": i,
+                "intent": "diagnose",
+                "handler": "diagnostic_question",
+                "topic": t["topic_id"],
+                "topic_name": t["topic_name"],
+                "why": "Baseline diagnostic",
+                "target_minutes": 2,
+                "status": "in_progress" if i == 0 else "pending",
+                "config": {},
+            }
+            for i, t in enumerate(EDEXCEL_9MA0_TOPICS[:7])
+        ]
+
+    # Use provided segment_plan or the diagnostic plan
+    resolved_plan = body.segment_plan or (diagnostic_plan if body.session_type == "diagnostic" else [])
+
     db_session = TutorSession(
         student_id=student.id,
         subject=body.subject,
         mode="explain",
+        session_type=body.session_type,
+        segment_plan=resolved_plan,
     )
     db.add(db_session)
     await db.flush()
@@ -79,11 +103,23 @@ async def start_session(
 
     opening = await generate_opening_message(state)
 
-    state["conversation_history"].append({
+    # Build conversation history seed
+    history: list[dict] = []
+
+    # Store return_to as system metadata (for session-end handler)
+    if body.return_to:
+        history.append({
+            "role": "system",
+            "content": f"return_to:{body.return_to}",
+        })
+
+    history.append({
         "role": "tutor",
         "content": opening,
         "metadata": {"turn": 0, "type": "opening"},
     })
+
+    state["conversation_history"].extend(history)
 
     save_session(state)
     await db.commit()
@@ -144,13 +180,11 @@ async def stream_message(
             ):
                 yield f"data: {json.dumps({'token': token})}\n\n"
 
-            # Emit structured cards produced by tool calls this turn, then clear
-            if state.get("last_question"):
-                yield f"data: {json.dumps({'question': state['last_question']})}\n\n"
-                state["last_question"] = None
-            if state.get("last_evaluation"):
-                yield f"data: {json.dumps({'evaluation': state['last_evaluation']})}\n\n"
-                state["last_evaluation"] = None
+            # Emit structured cards produced by the orchestrator this turn, then clear.
+            # structured_cards is a list of dicts with a "type" field (e.g. "question", "evaluation").
+            for card in state.get("structured_cards") or []:
+                yield f"data: {json.dumps({'card': card})}\n\n"
+            state["structured_cards"] = []
 
             save_session(state)
             await db.commit()
@@ -288,6 +322,8 @@ async def get_active_session(
         started_at=session.started_at,
         message_count=len([m for m in messages if m.get("role") == "student"]),
         last_message=last_message,
+        segment_plan=session.segment_plan or [],
+        current_segment_idx=session.current_segment_idx or 0,
     )
 
 
@@ -309,32 +345,8 @@ async def resume_session(
 
     messages = db_session.messages or []
     weak_topics = await _load_weak_topics(db, str(student.id), db_session.subject)
-    turn_count = len([m for m in messages if m.get("role") == "student"])
 
-    # Determine phase from turn count
-    if turn_count >= 4:
-        phase = "main"
-    elif turn_count >= 2:
-        phase = "warmup"
-    elif turn_count >= 1:
-        phase = "diagnostic"
-    else:
-        phase = "intro"
-
-    state = initial_state(
-        student_id=str(student.id),
-        subject=db_session.subject,
-        exam_board=student.exam_board,
-        exam_level=student.exam_level,
-        subscription_tier=student.subscription_tier,
-        exam_date=str(student.exam_date) if student.exam_date else None,
-        weak_topics=weak_topics,
-    )
-    state["session_id"] = session_id
-    state["conversation_history"] = messages
-    state["turn_count"] = turn_count
-    state["session_phase"] = phase
-    state["session_goal"] = db_session.topic
+    state = _rebuild_resume_state(session_id, student, db_session, messages, weak_topics)
 
     save_session(state)
 
@@ -345,8 +357,8 @@ async def resume_session(
     capture(str(student.id), "session_resumed", {
         "session_id": session_id,
         "subject": db_session.subject,
-        "turn_count": turn_count,
-        "phase": phase,
+        "turn_count": state["turn_count"],
+        "phase": state["session_phase"],
     })
 
     return StartSessionResponse(

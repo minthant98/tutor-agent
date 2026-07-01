@@ -1,0 +1,17 @@
+.gcloudignore
+.git
+.gitignore
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+web/
+web/.next/
+web/node_modules/
+docs/
+tests/
+*.log
+.DS_Store
+frontend/

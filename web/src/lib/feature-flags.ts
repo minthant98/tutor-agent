@@ -1,0 +1,34 @@
+"use client";
+import { useEffect, useState } from "react";
+import posthog from "posthog-js";
+
+export type StrideFlag =
+  | "dashboard_v2"
+  | "onboarding_v2"
+  | "session_engine_v2"
+  | "notifications_v2"
+  | "account_v2";
+
+const KNOWN_FLAGS: ReadonlyArray<StrideFlag> = [
+  "dashboard_v2",
+  "onboarding_v2",
+  "session_engine_v2",
+  "notifications_v2",
+  "account_v2",
+];
+
+export function useFeatureFlag(flag: StrideFlag, defaultValue = true): boolean {
+  const [enabled, setEnabled] = useState<boolean>(defaultValue);
+
+  useEffect(() => {
+    if (!KNOWN_FLAGS.includes(flag)) return;
+    const update = () => {
+      const v = posthog.isFeatureEnabled(flag);
+      setEnabled(v === undefined ? defaultValue : !!v);
+    };
+    update();
+    posthog.onFeatureFlags(update);
+  }, [flag, defaultValue]);
+
+  return enabled;
+}

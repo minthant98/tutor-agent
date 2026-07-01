@@ -8,6 +8,9 @@ class StartSessionRequest(BaseModel):
     subject: str = Field(description="mathematics, physics, chemistry, biology")
     exam_date: str | None = Field(None, description="ISO date: 2026-06-15")
     topic: str | None = None
+    session_type: Literal["practice", "diagnostic"] = "practice"
+    segment_plan: list[dict] | None = None  # optional preseeded plan (e.g. from Today's Focus)
+    return_to: str | None = None  # for onboarding diagnostic — where to route on completion
 
 
 class StartSessionResponse(BaseModel):
@@ -61,6 +64,8 @@ class ActiveSessionResponse(BaseModel):
     started_at: datetime
     message_count: int
     last_message: str | None
+    segment_plan: list[dict] = []
+    current_segment_idx: int = 0
 
 
 class StudyPlanWeek(BaseModel):
