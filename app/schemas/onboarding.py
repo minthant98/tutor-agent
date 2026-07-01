@@ -23,7 +23,7 @@ class ExamBoardIn(BaseModel):
 
 
 class ExamDateIn(BaseModel):
-    exam_date: date
+    exam_date: date | None = None
 
 
 class TargetGradeIn(BaseModel):

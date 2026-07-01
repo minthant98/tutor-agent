@@ -150,7 +150,8 @@ async def post_exam_date(
     all_subjects = await lps.get_or_create_draft(db, student.id)
     for s in all_subjects:
         if s.is_draft:
-            s.exam_date = body.exam_date
+            if body.exam_date is not None:
+                s.exam_date = body.exam_date
     prefs = dict(student.preferences or {})
     prefs["_step_date_done"] = True
     student.preferences = prefs

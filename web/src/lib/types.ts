@@ -113,7 +113,7 @@ export interface ExamBoardIn {
 }
 
 export interface ExamDateIn {
-  exam_date: string // ISO date string yyyy-MM-dd
+  exam_date: string | null // ISO date string yyyy-MM-dd, or null if not known
 }
 
 export interface TargetGradeIn {

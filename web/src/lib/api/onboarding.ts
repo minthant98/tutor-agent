@@ -44,4 +44,7 @@ export const onboardingApi = {
 
   submitRoadmap: (): Promise<WizardStateOut> =>
     apiFetch<WizardStateOut>("/onboarding/roadmap", { method: "POST" }),
+
+  finalize: (): Promise<WizardStateOut> =>
+    apiFetch<WizardStateOut>("/onboarding/complete", { method: "POST" }),
 };
