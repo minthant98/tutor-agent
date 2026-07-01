@@ -109,3 +109,29 @@ async def test_unauthenticated_request_returns_401(unauth_client):
     """Without auth token, wizard state should return 401."""
     r = await unauth_client.get("/api/v1/onboarding/state")
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_post_subjects_rejects_unsupported(onboarding_client):
+    """POST /api/v1/onboarding/subjects should reject unsupported subjects with 400."""
+    r = await onboarding_client.post(
+        "/api/v1/onboarding/subjects",
+        json={"subjects": ["physics"]},
+    )
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_post_exam_board_rejects_unsupported(onboarding_client):
+    """POST /api/v1/onboarding/exam-board should reject unsupported board combinations with 400."""
+    # First set up a valid pure_mathematics subject
+    await onboarding_client.post(
+        "/api/v1/onboarding/subjects",
+        json={"subjects": ["pure_mathematics"]},
+    )
+    # Try to set an unsupported exam board (aqa is not in SUPPORTED_COMBOS for any subject)
+    r = await onboarding_client.post(
+        "/api/v1/onboarding/exam-board",
+        json={"exam_board": "aqa"},
+    )
+    assert r.status_code == 400

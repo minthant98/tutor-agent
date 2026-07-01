@@ -7,7 +7,7 @@ State machine tracks step completion via `_step_*` markers in
 `student.preferences` rather than inferring from LearnerSubject field
 values (which have server-side defaults that would cause false positives).
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_student
@@ -24,6 +24,9 @@ from app.schemas.onboarding import (
 )
 
 router = APIRouter(prefix="/onboarding", tags=["onboarding"])
+
+# Derive supported subjects from SUPPORTED_COMBOS
+SUPPORTED_SUBJECTS = {combo[0] for combo in lps.SUPPORTED_COMBOS}
 
 _STEPS = ["subjects", "exam-board", "exam-date", "target-grade", "preferences", "roadmap", "done"]
 
@@ -95,6 +98,11 @@ async def post_subjects(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ) -> WizardStateOut:
+    # Validate all subjects before creating any drafts
+    for subject in body.subjects:
+        if subject not in SUPPORTED_SUBJECTS:
+            raise HTTPException(400, f"Subject '{subject}' is not yet supported")
+
     for subject in body.subjects:
         await lps.upsert_subject_draft(db, student.id, subject)
     # Refresh student from DB to get latest preferences
@@ -111,6 +119,14 @@ async def post_exam_board(
     db: AsyncSession = Depends(get_db),
 ) -> WizardStateOut:
     all_subjects = await lps.get_or_create_draft(db, student.id)
+
+    # Validate board compatibility for all draft subjects BEFORE mutating
+    for s in all_subjects:
+        if s.is_draft:
+            if not lps.is_supported_combo(s.subject, body.exam_board, s.exam_level or "a_level"):
+                raise HTTPException(400, f"Board '{body.exam_board}' is not supported for subject '{s.subject}'")
+
+    # All validations passed; now update the board
     for s in all_subjects:
         if s.is_draft:
             s.exam_board = body.exam_board

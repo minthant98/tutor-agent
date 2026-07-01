@@ -25,3 +25,4 @@ server.log
 .pytest_cache/
 docs/edexcel/pure_math/textbook/
 todo.md
+.vercel
