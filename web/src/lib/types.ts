@@ -87,3 +87,168 @@ export interface EvaluationCard {
   correct_steps: string[]
   errors: string[]
 }
+
+// ── Onboarding ────────────────────────────────────────────────────────────────
+
+export type WizardStep =
+  | "subjects"
+  | "exam-board"
+  | "exam-date"
+  | "target-grade"
+  | "preferences"
+  | "roadmap"
+  | "done"
+
+export interface WizardStateOut {
+  next_step: WizardStep
+  progress_pct: number
+}
+
+export interface SubjectsIn {
+  subjects: string[]
+}
+
+export interface ExamBoardIn {
+  exam_board: string
+}
+
+export interface ExamDateIn {
+  exam_date: string // ISO date string yyyy-MM-dd
+}
+
+export interface TargetGradeIn {
+  target_grade: string
+}
+
+export interface WizardPreferencesIn {
+  worked_examples: boolean
+  visual: boolean
+  step_by_step: boolean
+  practice: boolean
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+
+export interface SegmentOut {
+  idx: number
+  intent: string
+  handler: string
+  topic: string | null
+  why: string
+  target_minutes: number
+  status: string
+}
+
+export interface TodayFocusOut {
+  shape: string
+  segment_plan: SegmentOut[]
+  total_minutes: number
+  generated_at: string // ISO datetime
+}
+
+export interface ResumeSessionOut {
+  session_id: string
+  completed_segments: number
+  total_segments: number
+}
+
+export interface TopicMasteryOut {
+  topic: string
+  topic_name: string
+  mastery_pct: number
+}
+
+export interface TrendOut {
+  prev_pct: number
+  new_pct: number
+  delta: number
+}
+
+export interface RecentActivityOut {
+  last_studied: string | null // ISO date
+  summary: string | null
+  cold: boolean
+}
+
+export interface DashboardPayload {
+  subject: string
+  exam_date: string | null // ISO date
+  days_until_exam: number | null
+  target_grade: string
+  predicted_grade: string | null
+  readiness_pct: number
+  readiness_trend: TrendOut | null
+  today_focus: TodayFocusOut
+  resume_session: ResumeSessionOut | null
+  recent_activity: RecentActivityOut | null
+  strong_topics: TopicMasteryOut[]
+  weak_topics: TopicMasteryOut[]
+  subject_options: string[]
+}
+
+// ── Account ───────────────────────────────────────────────────────────────────
+
+export interface ProfileOut {
+  name: string
+  email: string
+}
+
+export interface SubjectOut {
+  id: string
+  subject: string
+  exam_board: string
+  exam_level: string
+  exam_date: string | null // ISO date
+  target_grade: string
+  current_grade: string | null
+  readiness_pct: number
+}
+
+export interface PreferencesOut {
+  worked_examples: boolean
+  visual: boolean
+  step_by_step: boolean
+  practice: boolean
+}
+
+export interface BillingOut {
+  tier: string
+  status: string
+}
+
+export interface AccountOut {
+  profile: ProfileOut
+  subjects: SubjectOut[]
+  preferences: PreferencesOut
+  billing: BillingOut
+}
+
+export interface SubjectPatch {
+  exam_date?: string | null // ISO date
+  target_grade?: string | null
+  current_grade?: string | null
+  exam_board?: string | null
+}
+
+export interface ProfilePatch {
+  name?: string | null
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export interface NotificationOut {
+  id: string
+  type: string
+  payload: Record<string, unknown>
+  read_at: string | null // ISO datetime
+  created_at: string     // ISO datetime
+}
+
+export interface NotificationListOut {
+  items: NotificationOut[]
+  unread_count: number
+}
+
+export interface MarkReadIn {
+  ids: string[]
+}
