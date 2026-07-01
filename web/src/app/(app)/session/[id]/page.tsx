@@ -214,6 +214,8 @@ export default function SessionPage() {
   const [rateLimited, setRateLimited] = useState(false)
   const [planReady, setPlanReady] = useState(false)
   const [showExit, setShowExit] = useState(false)
+  const [segmentPlan, setSegmentPlan] = useState<{ idx: number; intent: string; status: string }[]>([])
+  const [currentSegmentIdx, setCurrentSegmentIdx] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -223,6 +225,20 @@ export default function SessionPage() {
       setItems([{ kind: 'msg', id: 'opening', role: 'tutor', content: opening }])
     }
   }, [opening])
+
+  useEffect(() => {
+    // Load segment plan from the active session record
+    import('@/lib/api').then(({ apiFetch }) => {
+      apiFetch<{ segment_plan: { idx: number; intent: string; status: string }[]; current_segment_idx: number }>('/sessions/active')
+        .then((data) => {
+          if (data && data.segment_plan?.length > 0) {
+            setSegmentPlan(data.segment_plan)
+            setCurrentSegmentIdx(data.current_segment_idx ?? 0)
+          }
+        })
+        .catch(() => {/* non-critical — strip stays hidden */})
+    })
+  }, [id])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -297,7 +313,9 @@ export default function SessionPage() {
     <div className="flex h-screen flex-col" style={{ background: 'var(--bg)' }}>
       <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3 shrink-0 bg-white">
         {/* Segment progress — left side */}
-        {/* Note: segment_plan not available in session page yet, so hidden for now */}
+        {segmentPlan.length > 0 && (
+          <SegmentProgress plan={segmentPlan} currentIdx={currentSegmentIdx} />
+        )}
 
         {/* Close button — right side */}
         <button

@@ -47,18 +47,19 @@ def main() -> None:
     assert ready.json().get("status") == "ready", ready.text
 
     print("Smoke: walking onboarding wizard")
-    _post("/api/v1/onboarding/education-system", h, {"system": "a_level"})
+    # NOTE: /onboarding/education-system is frontend-only; education system is
+    # inferred server-side from the exam_board choice. Not sent to the API.
     _post("/api/v1/onboarding/subjects", h, {"subjects": ["pure_mathematics"]})
     _post("/api/v1/onboarding/exam-board", h, {"exam_board": "edexcel"})
     _post(
         "/api/v1/onboarding/exam-date",
         h,
-        {"subject_dates": {"pure_mathematics": "2027-06-01"}},
+        {"exam_date": "2027-06-01"},
     )
     _post(
         "/api/v1/onboarding/target-grade",
         h,
-        {"subject_grades": {"pure_mathematics": {"target": "A*"}}},
+        {"target_grade": "A*"},
     )
     _post(
         "/api/v1/onboarding/preferences",
@@ -72,7 +73,7 @@ def main() -> None:
     )
     fin = _post("/api/v1/onboarding/complete", h, {})
     body = fin.json()
-    assert body.get("redirect_to") == "/dashboard", body
+    assert body.get("next_step") == "done", body
 
     print("Smoke: /dashboard/pure_mathematics")
     dash = _get("/api/v1/dashboard/pure_mathematics", h)

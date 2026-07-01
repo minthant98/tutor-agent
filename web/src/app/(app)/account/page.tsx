@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { accountApi } from "@/lib/api/account";
 import { useFeatureFlag } from "@/lib/feature-flags";
-import { redirect } from "next/navigation";
 import { SubjectCard } from "@/components/account/subject-card";
 import { PreferencesSection } from "@/components/account/preferences-section";
 import { BillingSection } from "@/components/account/billing-section";
@@ -12,14 +12,18 @@ import type { AccountOut } from "@/lib/types";
 
 export default function AccountPage() {
   const v2 = useFeatureFlag("account_v2", true);
-  if (!v2) redirect("/dashboard");
+  const router = useRouter();
   const [data, setData] = useState<AccountOut | null>(null);
 
   useEffect(() => {
+    if (!v2) {
+      router.replace("/dashboard");
+      return;
+    }
     accountApi.get().then(setData);
-  }, []);
+  }, [v2, router]);
 
-  if (!data) return <p>Loading…</p>;
+  if (!v2 || !data) return <p>Loading…</p>;
 
   return (
     <div className="space-y-10">

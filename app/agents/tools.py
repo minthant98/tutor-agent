@@ -20,11 +20,13 @@ async def generate_question(
     """Public wrapper around _generate_question for use in segment handlers.
 
     Note: _generate_question uses topic and difficulty from args;
-    subject/exam_board/level come from state. with_hints and reframe_of are
-    not currently used by the underlying implementation but are accepted here
-    for forward compatibility.
+    subject/exam_board/level come from state. reframe_of, if provided, is
+    passed through so the LLM produces a variant of the original question
+    rather than a fresh one.
     """
     args = {"topic": topic, "difficulty": difficulty}
+    if reframe_of is not None:
+        args["reframe_of"] = reframe_of  # type: ignore[assignment]
     raw = await _generate_question(args, state)
     result = json.loads(raw)
     # Normalise key so handlers can access question text as result["question"]
@@ -208,8 +210,17 @@ async def _generate_question(args: dict, state: SessionState) -> str:
                     for i, e in enumerate(scheme_examples)]
         scheme_block = "\n\nReal mark schemes for marking format reference:\n" + "\n\n".join(snippets)
 
+    reframe_block = ""
+    if reframe_of := args.get("reframe_of"):
+        reframe_block = (
+            f"\n\nReframe this original question in a slightly different way, "
+            f"testing the same concept with different numbers or context:\n"
+            f"Original question: {reframe_of['question']}\n"
+            f"Original mark scheme: {reframe_of['mark_scheme']}\n"
+        )
+
     prompt = f"""Generate one {difficulty} exam-style question for {exam_board} A-Level {subject}.
-Topic: {topic}{question_block}{scheme_block}
+Topic: {topic}{question_block}{scheme_block}{reframe_block}
 
 Rules for the question:
 - Match the style, notation, and difficulty of the real past paper examples

@@ -64,6 +64,8 @@ class ActiveSessionResponse(BaseModel):
     started_at: datetime
     message_count: int
     last_message: str | None
+    segment_plan: list[dict] = []
+    current_segment_idx: int = 0
 
 
 class StudyPlanWeek(BaseModel):

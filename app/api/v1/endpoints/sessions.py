@@ -322,6 +322,8 @@ async def get_active_session(
         started_at=session.started_at,
         message_count=len([m for m in messages if m.get("role") == "student"]),
         last_message=last_message,
+        segment_plan=session.segment_plan or [],
+        current_segment_idx=session.current_segment_idx or 0,
     )
 
 

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import Student, LearnerSubject, MasteryState, TutorSession, TodayFocusHistory
 from app.api.v1.endpoints.auth import get_current_student
 from app.db.database import get_db
+from app.schemas.admin import InspectStudentResponse
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -20,7 +21,7 @@ def require_admin(student: Student = Depends(get_current_student)) -> Student:
     return student
 
 
-@router.get("/students/{student_id}/inspect")
+@router.get("/students/{student_id}/inspect", response_model=InspectStudentResponse)
 async def inspect_student(
     student_id: str,
     admin: Student = Depends(require_admin),
@@ -82,14 +83,14 @@ async def inspect_student(
         )
     ).scalars().all()
 
-    return {
+    return InspectStudentResponse.model_validate({
         "profile": {
             "id": str(target.id),
             "name": target.name,
             "email": target.email,
             "onboarded_at": target.onboarded_at,
             "subscription_tier": target.subscription_tier,
-            "preferences": target.preferences,
+            "preferences": target.preferences or {},
         },
         "subjects": [
             {
@@ -141,7 +142,7 @@ async def inspect_student(
             }
             for s in recent_sessions
         ],
-    }
+    })
 
 
 @router.post("/ingest")

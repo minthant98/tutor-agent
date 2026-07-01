@@ -11,6 +11,25 @@ from app.workflows.state import SessionState
 logger = logging.getLogger(__name__)
 
 
+def _default_topic_for(state: SessionState) -> str:
+    """Derive a non-None topic for a legacy v1 session.
+
+    Tries in order:
+    1. session_goal if set
+    2. First weak topic
+    3. First syllabus topic for the student's board (last-resort fallback)
+    """
+    if state.get("session_goal"):
+        return state["session_goal"]
+    weak = state.get("weak_topics") or []
+    if weak:
+        return weak[0]
+    from app.core.syllabus_seed import EDEXCEL_9MA0_TOPICS, CAMBRIDGE_9709_TOPICS
+    board = state.get("exam_board", "edexcel")
+    topics = EDEXCEL_9MA0_TOPICS if board == "edexcel" else CAMBRIDGE_9709_TOPICS
+    return topics[0]["topic_id"]
+
+
 def shim_v1_to_v2(state: SessionState) -> SessionState:
     """Wrap a legacy v1 session in a single-segment v2 plan at load time.
 
@@ -27,7 +46,7 @@ def shim_v1_to_v2(state: SessionState) -> SessionState:
             "idx": 0,
             "intent": "reinforce",
             "handler": "practice",
-            "topic": None,
+            "topic": _default_topic_for(state),
             "why": "Legacy session wrapped by shim_v1_to_v2",
             "target_minutes": 15,
             "status": "in_progress",

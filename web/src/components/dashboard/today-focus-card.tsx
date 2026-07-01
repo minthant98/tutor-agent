@@ -19,7 +19,7 @@ export function TodayFocusCard({ data }: { data: TodayFocusOut | null }) {
   const start = async () => {
     setStarting(true);
     try {
-      const s = await apiFetch<{ id: string }>("/sessions/start", {
+      const s = await apiFetch<{ session_id: string }>("/sessions/start", {
         method: "POST",
         body: JSON.stringify({
           subject: "pure_mathematics",
@@ -27,7 +27,7 @@ export function TodayFocusCard({ data }: { data: TodayFocusOut | null }) {
           segment_plan: data.segment_plan,
         }),
       });
-      router.push(`/session/${s.id}`);
+      router.push(`/session/${s.session_id}`);
     } catch {
       setStarting(false);
     }
