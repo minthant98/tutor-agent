@@ -6,6 +6,7 @@ Rules:
 - Each test gets a fresh session; the session is rolled back after the test.
 """
 import os
+import uuid as _uuid
 
 import pytest
 import pytest_asyncio
@@ -50,7 +51,7 @@ async def db_session():
 async def student(db_session):
     """A minimal Student row for use in service tests."""
     s = Student(
-        email="test_student@example.com",
+        email=f"test_student_{_uuid.uuid4().hex[:8]}@example.com",
         name="Test Student",
         hashed_password="hashed$dummy",
         exam_board="edexcel",
@@ -123,7 +124,7 @@ async def student_with_subject(db_session, syllabus_edexcel_seeded):
     from app.db.models import Student, LearnerSubject
 
     s = Student(
-        email="dashboard_student@example.com",
+        email=f"dashboard_student_{_uuid.uuid4().hex[:8]}@example.com",
         name="Dashboard Student",
         hashed_password="hashed$dummy",
         exam_board="edexcel",
@@ -207,7 +208,7 @@ async def unauth_client(db_session):
 async def admin_student(db_session):
     """A Student with is_admin=True for admin endpoint tests."""
     s = Student(
-        email="admin@test.example.com",
+        email=f"admin_{_uuid.uuid4().hex[:8]}@test.example.com",
         name="Admin User",
         hashed_password="hashed$dummy",
         exam_board="edexcel",
@@ -259,7 +260,7 @@ async def empty_db(db_session):
 async def fresh_student(db_session):
     """A Student with NO subjects — simulates a newly registered user before onboarding."""
     s = Student(
-        email="fresh_student@example.com",
+        email=f"fresh_student_{_uuid.uuid4().hex[:8]}@example.com",
         name="Fresh Student",
         hashed_password="hashed$dummy",
         exam_board="edexcel",
