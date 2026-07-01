@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
 import { dashboardApi } from "@/lib/api/dashboard";
 import { onboardingApi } from "@/lib/api/onboarding";
@@ -8,9 +9,11 @@ import type { DashboardPayload } from "@/lib/types";
 
 export default function RoadmapStep() {
   const router = useRouter();
+  const startTime = useRef<number>(Date.now());
   const [data, setData] = useState<DashboardPayload | null>(null);
 
   useEffect(() => {
+    startTime.current = Date.now();
     dashboardApi.get("pure_mathematics").then(setData).catch(() => setData(null));
   }, []);
 
@@ -68,6 +71,13 @@ export default function RoadmapStep() {
       <button
         onClick={async () => {
           await onboardingApi.finalize();
+          try {
+            posthog.capture("onboarding_completed", {
+              subjects: data?.subject ? [data.subject] : [],
+              board: data?.today_focus ? undefined : undefined,
+              time_to_complete_sec: Math.round((Date.now() - startTime.current) / 1000),
+            });
+          } catch (_) {}
           router.push("/dashboard");
         }}
         className="rounded-lg bg-[var(--blue)] px-5 py-3 text-white"

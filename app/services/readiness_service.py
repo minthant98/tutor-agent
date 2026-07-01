@@ -82,6 +82,32 @@ async def write_snapshot_if_first_today(db: AsyncSession, student_id: UUID, subj
     )
     db.add(snap)
     await db.flush()
+
+    # Find yesterday's snapshot to compute delta for telemetry
+    try:
+        prev_row = (await db.execute(
+            select(ReadinessSnapshot).where(
+                ReadinessSnapshot.student_id == student_id,
+                ReadinessSnapshot.subject == subject,
+                ReadinessSnapshot.snapshot_date < today,
+            ).order_by(ReadinessSnapshot.snapshot_date.desc()).limit(1)
+        )).scalar_one_or_none()
+        if prev_row and abs(snap.readiness_pct - prev_row.readiness_pct) > 0.1:
+            from app.core.telemetry import capture
+            delta = snap.readiness_pct - prev_row.readiness_pct
+            capture(str(student_id), "readiness_changed", {
+                "subject": subject,
+                "prev_pct": prev_row.readiness_pct,
+                "new_pct": snap.readiness_pct,
+                "delta": delta,
+            })
+            if delta >= 1.0:
+                from app.services.notification_service import emit
+                await emit(db, student_id, "readiness_increased",
+                           payload={"subject": subject, "delta": round(delta, 1)})
+    except Exception:
+        pass
+
     return snap
 
 

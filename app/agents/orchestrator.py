@@ -77,6 +77,18 @@ async def step_session(state: SessionState, db, redis, user_input: str) -> dict:
             "error": f"unknown handler {seg['handler']}",
         }
 
+    try:
+        from app.core.telemetry import capture
+        capture(str(state.get("student_id", "")), "segment_started", {
+            "intent": seg.get("intent"),
+            "handler": seg.get("handler"),
+            "topic": seg.get("topic"),
+            "target_minutes": seg.get("target_minutes"),
+            "segment_idx": idx,
+        })
+    except Exception:
+        pass
+
     result = await handler.step(state, db, redis, user_input)
     state_changes: dict = {}
     # The segment plan list is mutated in-place by the handler (via cfg dict).
@@ -86,6 +98,18 @@ async def step_session(state: SessionState, db, redis, user_input: str) -> dict:
     session_complete = False
     if result.get("segment_complete"):
         seg["status"] = "done"
+        try:
+            from app.core.telemetry import capture
+            capture(str(state.get("student_id", "")), "segment_completed", {
+                "intent": seg.get("intent"),
+                "handler": seg.get("handler"),
+                "topic": seg.get("topic"),
+                "target_minutes": seg.get("target_minutes"),
+                "segment_idx": idx,
+                "outcome": "completed",
+            })
+        except Exception:
+            pass
         next_idx = idx + 1
         if next_idx < len(plan):
             plan[next_idx]["status"] = "in_progress"

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
 import { ExamDatePicker } from "@/components/onboarding/fields/exam-date-picker";
 import { onboardingApi } from "@/lib/api/onboarding";
@@ -33,6 +34,12 @@ export default function ExamDateStep() {
         disabled={!canContinue}
         onClick={async () => {
           await onboardingApi.submitExamDate({ exam_date: date });
+          try {
+            posthog.capture("onboarding_step_completed", {
+              step_name: "exam-date",
+              time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+            });
+          } catch (_) {}
           const state = await onboardingApi.getState();
           router.push(`/onboarding/${state.next_step}`);
         }}

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
 import { SubjectPicker } from "@/components/onboarding/fields/subject-picker";
 import { onboardingApi } from "@/lib/api/onboarding";
@@ -25,6 +26,12 @@ export default function SubjectsStep() {
         disabled={subjects.length === 0}
         onClick={async () => {
           await onboardingApi.submitSubjects({ subjects });
+          try {
+            posthog.capture("onboarding_step_completed", {
+              step_name: "subjects",
+              time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+            });
+          } catch (_) {}
           const state = await onboardingApi.getState();
           router.push(`/onboarding/${state.next_step}`);
         }}

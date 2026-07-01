@@ -387,6 +387,18 @@ async def get_or_generate(db: AsyncSession, redis, student_id, subject: str) -> 
 
     ttl_sec = max(1, int((expires - now_utc).total_seconds()))
     redis.set(key, json.dumps(payload, default=str), ex=ttl_sec)
+
+    try:
+        from app.core.telemetry import capture
+        capture(str(student_id), "today_focus_generated", {
+            "shape": shape,
+            "intents": [s["intent"] for s in plan],
+            "topics": [s["topic"] for s in plan],
+            "generator_version": GENERATOR_VERSION,
+        })
+    except Exception:
+        pass
+
     return payload
 
 

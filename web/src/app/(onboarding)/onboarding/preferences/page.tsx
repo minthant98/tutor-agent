@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
 import { onboardingApi } from "@/lib/api/onboarding";
 
@@ -81,6 +82,12 @@ export default function PreferencesStep() {
       <button
         onClick={async () => {
           await onboardingApi.submitPreferences(prefs);
+          try {
+            posthog.capture("onboarding_step_completed", {
+              step_name: "preferences",
+              time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+            });
+          } catch (_) {}
           const state = await onboardingApi.getState();
           router.push(`/onboarding/${state.next_step}`);
         }}

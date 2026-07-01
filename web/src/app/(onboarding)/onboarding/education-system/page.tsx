@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
 import { SystemPicker } from "@/components/onboarding/fields/system-picker";
 
@@ -16,6 +17,12 @@ export default function EducationSystemStep() {
   const handleContinue = () => {
     // Education system is frontend-only — no backend endpoint.
     // A Levels is the only supported option; route directly to subjects.
+    try {
+      posthog.capture("onboarding_step_completed", {
+        step_name: "education-system",
+        time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+      });
+    } catch (_) {}
     router.push("/onboarding/subjects");
   };
 

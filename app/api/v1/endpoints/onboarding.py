@@ -212,6 +212,20 @@ async def post_complete(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ) -> WizardStateOut:
+    all_subjects_before = await lps.get_or_create_draft(db, student.id)
+    subject_names = [s.subject for s in all_subjects_before if s.is_draft]
+    board = all_subjects_before[0].exam_board if all_subjects_before else student.exam_board
+
     await lps.finalize_drafts(db, student.id)
     student = await db.get(Student, student.id)
+
+    try:
+        from app.core.telemetry import capture
+        capture(str(student.id), "onboarding_completed", {
+            "subjects": subject_names,
+            "board": board,
+        })
+    except Exception:
+        pass
+
     return await _get_state(db, student)

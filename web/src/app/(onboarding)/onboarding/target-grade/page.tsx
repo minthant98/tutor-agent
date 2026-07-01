@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
 import { GradePicker } from "@/components/onboarding/fields/grade-picker";
 import { onboardingApi } from "@/lib/api/onboarding";
@@ -25,6 +26,12 @@ export default function TargetGradeStep() {
         disabled={!grade}
         onClick={async () => {
           await onboardingApi.submitTargetGrade({ target_grade: grade });
+          try {
+            posthog.capture("onboarding_step_completed", {
+              step_name: "target-grade",
+              time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+            });
+          } catch (_) {}
           const state = await onboardingApi.getState();
           // After target-grade, backend next_step = "preferences"
           // But our wizard has "assessment" before "preferences"

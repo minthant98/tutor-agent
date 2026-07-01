@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import posthog from "posthog-js";
 import { notificationsApi } from "@/lib/api/notifications";
 import { useFeatureFlag } from "@/lib/feature-flags";
 import type { NotificationOut } from "@/lib/types";
@@ -66,6 +67,12 @@ export function NotificationBell() {
                 <li
                   key={n.id}
                   className={`border-b px-3 py-2 text-sm ${!n.read_at ? "bg-blue-50" : ""}`}
+                  onClick={() => {
+                    try {
+                      posthog.capture("notification_clicked", { type: n.type });
+                    } catch (_) {}
+                  }}
+                  style={{ cursor: "pointer" }}
                 >
                   {labelFor(n)}
                 </li>
