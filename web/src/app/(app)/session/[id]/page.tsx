@@ -5,6 +5,8 @@ import { streamMessage, endSession } from '@/lib/api'
 import type { EvaluationCard, QuestionCard, Signal } from '@/lib/types'
 import { renderMath } from '@/lib/math'
 import { track } from '@/lib/posthog'
+import { ExitConfirmation } from '@/components/session/exit-confirmation'
+import { SegmentProgress } from '@/components/session/segment-progress'
 
 type ChatItem =
   | { kind: 'msg'; id: string; role: 'student' | 'tutor'; content: string; streaming?: boolean }
@@ -211,6 +213,7 @@ export default function SessionPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [rateLimited, setRateLimited] = useState(false)
   const [planReady, setPlanReady] = useState(false)
+  const [showExit, setShowExit] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<(() => void) | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -288,9 +291,25 @@ export default function SessionPage() {
 
   const phaseColor = PHASE_COLOR[phase] ?? '#94A3B8'
   const studentMsgCount = items.filter(it => it.kind === 'msg' && it.role === 'student').length
+  const hasAnsweredAtLeastOne = items.length > 1
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: 'var(--bg)' }}>
+    <div className="flex h-screen flex-col" style={{ background: 'var(--bg)' }}>
+      <header className="flex items-center justify-between border-b border-slate-100 px-4 py-3 shrink-0 bg-white">
+        {/* Segment progress — left side */}
+        {/* Note: segment_plan not available in session page yet, so hidden for now */}
+
+        {/* Close button — right side */}
+        <button
+          onClick={() => setShowExit(true)}
+          aria-label="Close session"
+          className="ml-auto p-2 text-slate-400 hover:text-slate-700 text-lg"
+        >
+          ✕
+        </button>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden" style={{ background: 'var(--bg)' }}>
 
       {/* Left sidebar — topics */}
       <aside className={`
@@ -543,6 +562,13 @@ export default function SessionPage() {
           </button>
         </div>
       </aside>
+      </div>
+
+      <ExitConfirmation
+        open={showExit}
+        onClose={() => setShowExit(false)}
+        hasProgress={hasAnsweredAtLeastOne}
+      />
     </div>
   )
 }
