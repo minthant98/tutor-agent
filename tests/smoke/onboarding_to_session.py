@@ -32,14 +32,23 @@ def _get(path: str, headers: dict | None = None) -> requests.Response:
 
 def main() -> None:
     email = f"smoke+{os.getpid()}.{int(time.time())}@test.stride"
+    password = "ThrowAway123!"
     print(f"Smoke: registering {email}")
     reg = requests.post(
         f"{BASE}/api/v1/auth/register",
-        json={"email": email, "name": "Smoke", "password": "ThrowAway123!"},
+        json={"email": email, "name": "Smoke", "password": password},
         timeout=30,
     )
     reg.raise_for_status()
-    token = reg.json()["access_token"]
+
+    # /auth/login uses OAuth2PasswordRequestForm (form-encoded), returns TokenResponse
+    login = requests.post(
+        f"{BASE}/api/v1/auth/login",
+        data={"username": email, "password": password},
+        timeout=30,
+    )
+    login.raise_for_status()
+    token = login.json()["access_token"]
     h = {"Authorization": f"Bearer {token}"}
 
     print("Smoke: /readyz")
