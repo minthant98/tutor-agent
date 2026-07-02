@@ -27,3 +27,6 @@ docs/edexcel/pure_math/textbook/
 todo.md
 .vercel
 .next/
+
+# Educational PDFs (bulk-ingested to Qdrant; don't need to be in git)
+docs/**/*.pdf
