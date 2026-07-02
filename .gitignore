@@ -26,3 +26,4 @@ server.log
 docs/edexcel/pure_math/textbook/
 todo.md
 .vercel
+.next/
