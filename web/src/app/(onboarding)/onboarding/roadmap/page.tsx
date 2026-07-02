@@ -12,10 +12,43 @@ export default function RoadmapStep() {
   const startTime = useRef<number>(Date.now());
   const [data, setData] = useState<DashboardPayload | null>(null);
 
+  const [errored, setErrored] = useState(false);
+
   useEffect(() => {
     startTime.current = Date.now();
-    dashboardApi.get("pure_mathematics").then(setData).catch(() => setData(null));
+    // Flip learner_subjects drafts to non-draft so the dashboard endpoint can
+    // find the profile. Finalize is idempotent — safe to call if already done.
+    (async () => {
+      try {
+        await onboardingApi.finalize();
+      } catch {
+        // Finalize may 400 if drafts already flipped; not fatal.
+      }
+      try {
+        const dash = await dashboardApi.get("pure_mathematics");
+        setData(dash);
+      } catch {
+        setErrored(true);
+      }
+    })();
   }, []);
+
+  if (errored) {
+    return (
+      <WizardShell step="roadmap">
+        <h1 className="mb-2 text-2xl font-semibold">You&apos;re all set.</h1>
+        <p className="mb-6 text-[var(--text-secondary)]">
+          Your profile is saved. Let&apos;s head to your dashboard.
+        </p>
+        <button
+          onClick={() => router.push("/dashboard")}
+          className="rounded-lg bg-[var(--blue)] px-5 py-3 text-white"
+        >
+          Go to dashboard
+        </button>
+      </WizardShell>
+    );
+  }
 
   if (!data) {
     return (
