@@ -80,112 +80,100 @@ Existing `session_type="practice"` (Today's Focus) unchanged. `session_type="dia
 
 ## 5. Practice planner service
 
-**New file:** `app/services/practice_planner.py`
+Structured as a `planners/` package with a per-mode file and a shared base. This keeps each planner focused and lets future modes (Exam, Past Paper, Timed, Sprint, Mock) be added by dropping a new file and registering it — the dispatcher never changes.
+
+### File layout
+
+```
+app/services/planners/
+├── __init__.py       # exposes PLANNERS registry
+├── base.py           # Planner protocol + shared helpers
+├── quick.py          # QuickPlanner
+├── weak.py           # WeakAreasPlanner
+└── drill.py          # DrillInPlanner
+```
+
+### `base.py` — protocol + shared helpers
 
 ```python
-"""Builds segment_plan for practice modes.
-
-Reuses the existing practice / mistakes handlers via segment_plan configuration —
-no new handler code needed.
-"""
+"""Planner protocol + helpers shared across all practice modes."""
+from typing import Protocol, TypedDict
 from uuid import UUID
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.models import MasteryState, SyllabusTopic
+
+from app.db.models import LearnerSubject, MasteryState, SyllabusTopic
 
 
-async def build_quick_practice_plan(
+class TopicSelection(TypedDict):
+    topic: str
+    mastery: float | None
+    chosen_intent: str | None
+    last_practiced_days: int | None
+    signal: str  # short machine-readable reason
+
+
+class PlannerReason(TypedDict):
+    topic_selections: list[TopicSelection]
+
+
+class BuildResult(TypedDict):
+    plan: list[dict]     # segment_plan
+    reason: PlannerReason
+
+
+class Planner(Protocol):
+    session_type: str
+    requires_topic: bool
+
+    async def build(
+        self, db: AsyncSession, student_id: UUID, subject: str, topic: str | None
+    ) -> BuildResult: ...
+
+
+# ── shared helpers ─────────────────────────────────────────────────────────────
+
+def _intent_from_mastery(m: float) -> str:
+    """Map a mastery score to the pedagogically appropriate intent."""
+    if m < 0.20: return "teach"
+    if m < 0.60: return "reinforce"
+    return "assess"
+
+
+def _format_topic(topic_id: str) -> str:
+    return topic_id.replace("_", " ").title()
+
+
+async def _validate_topic(
     db: AsyncSession, student_id: UUID, subject: str, topic: str
-) -> list[dict]:
-    """1-segment plan, 3 questions, on the chosen topic."""
-    await _validate_topic(db, subject, topic)
-    return [{
-        "idx": 0, "intent": "reinforce", "handler": "practice",
-        "topic": topic,
-        "why": f"Quick practice on {_format_topic(topic)}.",
-        "target_minutes": 5, "status": "in_progress",
-        "config": {"mode": "quick_practice", "max_questions": 3, "allow_hints": True},
-    }]
+) -> None:
+    """Verify topic exists AND belongs to the student's pinned syllabus for this subject."""
+    version_res = await db.execute(
+        select(LearnerSubject.syllabus_version).where(
+            LearnerSubject.student_id == student_id,
+            LearnerSubject.subject == subject,
+        )
+    )
+    version = version_res.scalar()
+    if not version:
+        raise HTTPException(400, f"Subject '{subject}' not configured for this student")
 
+    res = await db.execute(
+        select(SyllabusTopic.topic_id).where(
+            SyllabusTopic.subject == subject,
+            SyllabusTopic.version == version,
+            SyllabusTopic.topic_id == topic,
+        ).limit(1)
+    )
+    if res.scalar_one_or_none() is None:
+        raise HTTPException(400, f"Topic '{topic}' not in {subject} syllabus {version}")
 
-async def build_weak_areas_plan(
-    db: AsyncSession, student_id: UUID, subject: str
-) -> list[dict]:
-    """3 segments: teach weakest → reinforce 2nd weakest → mistakes review."""
-    weak = await _weakest_topics_with_attempts(db, student_id, subject, limit=2)
-    # Fallback if student has fewer than 2 attempted topics — pick first syllabus
-    # topics that aren't already in the weak list to avoid duplicates.
-    if len(weak) < 2:
-        exclude = {t for t, _ in weak}
-        fallback = await _first_syllabus_topics(
-            db, student_id, subject, exclude=exclude, limit=2 - len(weak))
-        weak = weak + [(t, 0.0) for t in fallback]
-
-    (t1, m1), (t2, m2) = weak[0], weak[1]
-    return [
-        {
-            "idx": 0, "intent": "teach", "handler": "practice",
-            "topic": t1,
-            "why": f"Your weakest area — let's build it back up.",
-            "target_minutes": 6, "status": "in_progress",
-            "config": {"mode": "weak_areas", "target_topics": [t1, t2],
-                       "system_prompt_addendum": "Open with a worked example before asking.",
-                       "allow_hints": True, "max_questions": 3},
-        },
-        {
-            "idx": 1, "intent": "reinforce", "handler": "practice",
-            "topic": t2,
-            "why": f"Next-weakest — keep building.",
-            "target_minutes": 6, "status": "pending",
-            "config": {"mode": "weak_areas", "allow_hints": True, "max_questions": 3},
-        },
-        {
-            "idx": 2, "intent": "consolidate", "handler": "mistakes",
-            "topic": None,
-            "why": "Review recent mistakes across your session history.",
-            "target_minutes": 3, "status": "pending",
-            "config": {"mode": "weak_areas", "source_sessions_days": 7},
-        },
-    ]
-
-
-async def build_drill_in_plan(
-    db: AsyncSession, student_id: UUID, subject: str, topic: str
-) -> list[dict]:
-    """3 segments on ONE topic: teach → reinforce → assess."""
-    await _validate_topic(db, subject, topic)
-    return [
-        {
-            "idx": 0, "intent": "teach", "handler": "practice",
-            "topic": topic,
-            "why": f"Building up {_format_topic(topic)}.",
-            "target_minutes": 4, "status": "in_progress",
-            "config": {"mode": "drill_in",
-                       "system_prompt_addendum": "Open with a worked example before asking.",
-                       "allow_hints": True, "max_questions": 2},
-        },
-        {
-            "idx": 1, "intent": "reinforce", "handler": "practice",
-            "topic": topic,
-            "why": "Now try something harder.",
-            "target_minutes": 4, "status": "pending",
-            "config": {"mode": "drill_in", "allow_hints": True, "max_questions": 2},
-        },
-        {
-            "idx": 2, "intent": "assess", "handler": "practice",
-            "topic": topic,
-            "why": "No hints this round — test what you've learned.",
-            "target_minutes": 2, "status": "pending",
-            "config": {"mode": "drill_in", "allow_hints": False, "max_questions": 2},
-        },
-    ]
-
-
-# ── helpers ────────────────────────────────────────────────────────────────────
 
 async def _weakest_topics_with_attempts(
     db: AsyncSession, student_id: UUID, subject: str, limit: int
 ) -> list[tuple[str, float]]:
+    """Return [(topic, mastery)] sorted by mastery ascending, only for topics with attempts."""
     res = await db.execute(
         select(MasteryState.topic, MasteryState.mastery_score)
         .where(MasteryState.student_id == student_id,
@@ -201,7 +189,6 @@ async def _first_syllabus_topics(
     db: AsyncSession, student_id: UUID, subject: str, exclude: set[str], limit: int
 ) -> list[str]:
     """First syllabus topics for the student's pinned syllabus_version, skipping any in `exclude`."""
-    from app.db.models import LearnerSubject
     version_res = await db.execute(
         select(LearnerSubject.syllabus_version).where(
             LearnerSubject.student_id == student_id,
@@ -223,49 +210,262 @@ async def _first_syllabus_topics(
     return picked
 
 
-async def _validate_topic(db: AsyncSession, subject: str, topic: str) -> None:
+async def _days_since_last_practice(
+    db: AsyncSession, student_id: UUID, subject: str, topic: str
+) -> int | None:
+    """Days since the topic was last practiced (via last_reviewed_at on mastery)."""
+    from datetime import datetime, timezone
     res = await db.execute(
-        select(SyllabusTopic.topic_id)
-        .where(SyllabusTopic.subject == subject,
-               SyllabusTopic.topic_id == topic)
+        select(MasteryState.last_reviewed_at)
+        .where(MasteryState.student_id == student_id,
+               MasteryState.subject == subject,
+               MasteryState.topic == topic)
         .limit(1)
     )
-    if res.scalar_one_or_none() is None:
-        from fastapi import HTTPException
-        raise HTTPException(400, f"Unknown topic '{topic}' for subject '{subject}'")
-
-
-def _format_topic(topic_id: str) -> str:
-    return topic_id.replace("_", " ").title()
+    last = res.scalar_one_or_none()
+    if not last:
+        return None
+    return (datetime.now(timezone.utc) - last).days
 ```
 
-## 6. `/sessions/start` dispatcher
-
-Extend `app/api/v1/endpoints/sessions.py:start_session`:
+### `quick.py` — QuickPlanner
 
 ```python
+"""1-segment plan on a user-chosen topic. 3 questions, ~5 min."""
+from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.planners.base import (
+    BuildResult, PlannerReason, _format_topic, _validate_topic,
+)
+
+
+class QuickPlanner:
+    session_type = "quick_practice"
+    requires_topic = True
+
+    async def build(
+        self, db: AsyncSession, student_id: UUID, subject: str, topic: str | None
+    ) -> BuildResult:
+        assert topic is not None  # dispatcher already checks requires_topic
+        await _validate_topic(db, student_id, subject, topic)
+
+        segment = {
+            "idx": 0, "intent": "reinforce", "handler": "practice",
+            "topic": topic,
+            "why": f"Quick practice on {_format_topic(topic)}.",
+            "target_minutes": 5, "status": "in_progress",
+            "config": {"mode": "quick_practice", "max_questions": 3, "allow_hints": True},
+        }
+        reason: PlannerReason = {
+            "topic_selections": [{
+                "topic": topic, "mastery": None, "chosen_intent": "reinforce",
+                "last_practiced_days": None, "signal": "user_selected",
+            }],
+        }
+        return {"plan": [segment], "reason": reason}
+```
+
+### `weak.py` — WeakAreasPlanner (adaptive)
+
+```python
+"""3-segment plan across 2 weakest topics + mistakes review.
+
+Adaptive intent selection: each segment's intent is derived from the topic's
+current mastery (teach < 0.20, reinforce 0.20–0.60, assess ≥ 0.60), so a student
+with a near-zero-mastery topic gets a worked example while a student with
+partial mastery gets repetition.
+"""
+from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.planners.base import (
+    BuildResult, PlannerReason, TopicSelection, _first_syllabus_topics,
+    _format_topic, _intent_from_mastery, _days_since_last_practice,
+    _weakest_topics_with_attempts,
+)
+
+
+class WeakAreasPlanner:
+    session_type = "weak_areas"
+    requires_topic = False
+
+    async def build(
+        self, db: AsyncSession, student_id: UUID, subject: str, topic: str | None
+    ) -> BuildResult:
+        weak = await _weakest_topics_with_attempts(db, student_id, subject, limit=2)
+        # Fresh-student fallback — treat unattempted topics as mastery=0.0 (→ teach intent)
+        if len(weak) < 2:
+            exclude = {t for t, _ in weak}
+            fallback = await _first_syllabus_topics(
+                db, student_id, subject, exclude=exclude, limit=2 - len(weak))
+            weak = weak + [(t, 0.0) for t in fallback]
+
+        selections: list[TopicSelection] = []
+        segments: list[dict] = []
+        for i, (topic, mastery) in enumerate(weak):
+            intent = _intent_from_mastery(mastery)
+            days = await _days_since_last_practice(db, student_id, subject, topic)
+            config = {"mode": "weak_areas", "allow_hints": True, "max_questions": 3}
+            if intent == "teach":
+                config["system_prompt_addendum"] = "Open with a worked example before asking."
+            elif intent == "assess":
+                config["allow_hints"] = False
+                config["max_questions"] = 2
+            segments.append({
+                "idx": i, "intent": intent, "handler": "practice",
+                "topic": topic,
+                "why": _why_for(intent, topic, mastery),
+                "target_minutes": 6, "status": "in_progress" if i == 0 else "pending",
+                "config": config,
+            })
+            selections.append({
+                "topic": topic, "mastery": mastery, "chosen_intent": intent,
+                "last_practiced_days": days,
+                "signal": _signal_for(i, mastery, days, is_fallback=(mastery == 0.0 and days is None)),
+            })
+
+        # Segment 2 — mistakes review (unchanged; always ends the plan)
+        segments.append({
+            "idx": 2, "intent": "consolidate", "handler": "mistakes",
+            "topic": None,
+            "why": "Review recent mistakes across your session history.",
+            "target_minutes": 3, "status": "pending",
+            "config": {"mode": "weak_areas", "source_sessions_days": 7},
+        })
+        selections.append({
+            "topic": "__mistakes__", "mastery": None, "chosen_intent": "consolidate",
+            "last_practiced_days": None, "signal": "mistakes_from_recent_sessions",
+        })
+
+        return {"plan": segments, "reason": {"topic_selections": selections}}
+
+
+def _why_for(intent: str, topic: str, mastery: float) -> str:
+    name = _format_topic(topic)
+    if intent == "teach":
+        return f"{name} is nearly unlearned ({int(mastery * 100)}%). Let's build it up."
+    if intent == "reinforce":
+        return f"{name} is at {int(mastery * 100)}%. Reinforcement time."
+    return f"{name} looks solid ({int(mastery * 100)}%). Let's pressure-test it."
+
+
+def _signal_for(idx: int, mastery: float, days: int | None, is_fallback: bool) -> str:
+    if is_fallback:
+        return "syllabus_seed_fallback"
+    if idx == 0:
+        return "weakest_topic_low_mastery" if mastery < 0.20 else "weakest_topic_partial_mastery"
+    return "next_weakest"
+```
+
+### `drill.py` — DrillInPlanner
+
+```python
+"""3-segment plan on ONE topic — teach → reinforce → assess.
+
+Cognitive progression: worked example → guided → independent (no hints).
+"""
+from uuid import UUID
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.planners.base import (
+    BuildResult, PlannerReason, _format_topic, _validate_topic,
+)
+
+
+class DrillInPlanner:
+    session_type = "drill_in"
+    requires_topic = True
+
+    async def build(
+        self, db: AsyncSession, student_id: UUID, subject: str, topic: str | None
+    ) -> BuildResult:
+        assert topic is not None
+        await _validate_topic(db, student_id, subject, topic)
+        name = _format_topic(topic)
+
+        segments = [
+            {
+                "idx": 0, "intent": "teach", "handler": "practice",
+                "topic": topic,
+                "why": f"Building up {name}.",
+                "target_minutes": 4, "status": "in_progress",
+                "config": {"mode": "drill_in",
+                           "system_prompt_addendum": "Open with a worked example before asking.",
+                           "allow_hints": True, "max_questions": 2},
+            },
+            {
+                "idx": 1, "intent": "reinforce", "handler": "practice",
+                "topic": topic,
+                "why": "Now try something harder.",
+                "target_minutes": 4, "status": "pending",
+                "config": {"mode": "drill_in", "allow_hints": True, "max_questions": 2},
+            },
+            {
+                "idx": 2, "intent": "assess", "handler": "practice",
+                "topic": topic,
+                "why": "No hints this round — test what you've learned.",
+                "target_minutes": 2, "status": "pending",
+                "config": {"mode": "drill_in", "allow_hints": False, "max_questions": 2},
+            },
+        ]
+        reason: PlannerReason = {
+            "topic_selections": [{
+                "topic": topic, "mastery": None, "chosen_intent": "teach",
+                "last_practiced_days": None, "signal": "drill_in_from_dashboard",
+            }],
+        }
+        return {"plan": segments, "reason": reason}
+```
+
+### `__init__.py` — registry
+
+```python
+"""Practice mode planner registry.
+
+To add a new mode: create a new planner file (following the Planner protocol
+in base.py) and register it below. The /sessions/start dispatcher looks up the
+planner by session_type — it does not need to change.
+"""
+from .base import Planner, BuildResult, PlannerReason, TopicSelection
+from .quick import QuickPlanner
+from .weak import WeakAreasPlanner
+from .drill import DrillInPlanner
+
+PLANNERS: dict[str, Planner] = {
+    QuickPlanner.session_type: QuickPlanner(),
+    WeakAreasPlanner.session_type: WeakAreasPlanner(),
+    DrillInPlanner.session_type: DrillInPlanner(),
+}
+
+__all__ = ["Planner", "BuildResult", "PlannerReason", "TopicSelection", "PLANNERS"]
+```
+
+## 6. `/sessions/start` dispatcher — registry lookup
+
+The dispatcher does not enumerate session types. It looks up the planner by name from the registry — adding a new practice mode is a matter of writing a new planner file and adding it to `PLANNERS`, with zero change here.
+
+```python
+from app.services.planners import PLANNERS
+
 resolved_plan: list[dict] = []
+planner_reason: dict | None = None
 
 if body.session_type == "diagnostic":
     # existing diagnostic branch (unchanged from sub-project #1)
-    ...
-elif body.session_type == "quick_practice":
-    if not body.topic:
-        raise HTTPException(400, "topic required for quick_practice")
-    resolved_plan = await practice_planner.build_quick_practice_plan(
-        db, student.id, body.subject, body.topic)
-elif body.session_type == "weak_areas":
-    resolved_plan = await practice_planner.build_weak_areas_plan(
-        db, student.id, body.subject)
-elif body.session_type == "drill_in":
-    if not body.topic:
-        raise HTTPException(400, "topic required for drill_in")
-    resolved_plan = await practice_planner.build_drill_in_plan(
-        db, student.id, body.subject, body.topic)
+    resolved_plan = _build_diagnostic_plan(...)
+elif body.session_type in PLANNERS:
+    planner = PLANNERS[body.session_type]
+    if planner.requires_topic and not body.topic:
+        raise HTTPException(400, f"topic required for {body.session_type}")
+    result = await planner.build(db, student.id, body.subject, body.topic)
+    resolved_plan = result["plan"]
+    planner_reason = result["reason"]
 else:
     # session_type == "practice" — Today's Focus or resumed session; existing behavior
     resolved_plan = body.segment_plan or []
 ```
+
+`planner_reason` is:
+1. Emitted as a `practice_started` PostHog event property (Section 10)
+2. Persisted on the `TutorSession.messages` JSON column as a system-role metadata entry with `{"type": "planner_reason", "payload": planner_reason}` so it survives PostHog retention windows and remains available to the admin inspect page
 
 Rest of `start_session` (create TutorSession, initial_state, save_session, telemetry) unchanged.
 
@@ -423,9 +623,35 @@ Practice sessions never surface in Resume card even if within their 1h window �
 
 | Event | Fires when | Properties |
 |---|---|---|
-| `practice_started` | Backend `POST /sessions/start` succeeds with practice session_type | `mode` (quick_practice/weak_areas/drill_in), `subject`, `topic` (nullable) |
+| `practice_started` | Backend `POST /sessions/start` succeeds with practice session_type | `mode`, `subject`, `topic` (nullable), **`planner_reason`** (structured; see below) |
 | `practice_completed` | Backend orchestrator marks a practice session `session_complete=True` | `mode`, `subject`, `topics_practiced` (list), `duration_sec`, `questions_attempted`, `questions_correct` |
 | `weak_topic_tapped` | Frontend: user clicks a tappable weak topic row | `topic`, `mastery_pct` |
+
+### `planner_reason` shape
+
+The `PlannerReason` object built by each planner (see `base.py`) rides on `practice_started` so debugging "why did the planner pick this topic?" becomes queryable in PostHog:
+
+```json
+{
+  "topic_selections": [
+    {"topic": "integration", "mastery": 0.15, "chosen_intent": "teach",
+     "last_practiced_days": 21, "signal": "weakest_topic_low_mastery"},
+    {"topic": "differentiation", "mastery": 0.48, "chosen_intent": "reinforce",
+     "last_practiced_days": 3, "signal": "next_weakest"},
+    {"topic": "__mistakes__", "mastery": null, "chosen_intent": "consolidate",
+     "last_practiced_days": null, "signal": "mistakes_from_recent_sessions"}
+  ]
+}
+```
+
+Signals used (extensible per-planner):
+- `user_selected` — Quick Practice
+- `drill_in_from_dashboard` — user tapped a weak topic
+- `weakest_topic_low_mastery`, `weakest_topic_partial_mastery`, `next_weakest` — Weak Areas
+- `syllabus_seed_fallback` — fresh student without enough attempted topics
+- `mistakes_from_recent_sessions` — always used for the mistakes segment of Weak Areas
+
+The same object is persisted to `TutorSession.messages` (see Section 6) so it's available beyond PostHog retention windows.
 
 ### Property extensions on existing events
 
@@ -443,14 +669,17 @@ Existing `segment_started` / `segment_completed` / `session_ended` events should
 ## 12. Testing
 
 ### Unit tests
-File: `tests/test_practice_planner.py`
+Files: `tests/test_planner_base.py`, `tests/test_planner_quick.py`, `tests/test_planner_weak.py`, `tests/test_planner_drill.py`
 
-- `build_quick_practice_plan` returns 1 segment with correct intent/handler/topic/target_minutes/config
-- `build_weak_areas_plan` returns 3 segments: teach → reinforce → mistakes
-- `build_weak_areas_plan` fallback: student with 0 attempted topics gets syllabus-seeded plan
-- `build_weak_areas_plan` with 1 attempted topic gets 1 attempted + 1 syllabus
-- `build_drill_in_plan` returns 3 segments all on the given topic with allow_hints=[T, T, F]
-- `_validate_topic` raises 400 on unknown topic
+- `_intent_from_mastery` bucketing: `< 0.20 → teach`, `0.20–0.60 → reinforce`, `≥ 0.60 → assess`, boundary values
+- `_validate_topic` raises 400 for unknown topic, for topic not in the student's syllabus_version, for unconfigured subject
+- `QuickPlanner.build` returns 1 segment with intent=reinforce, correct config, and `planner_reason.topic_selections[0].signal == "user_selected"`
+- `WeakAreasPlanner.build` with student having 2 weak topics at mastery 0.15 + 0.48: intent = [`teach`, `reinforce`, `consolidate`]
+- `WeakAreasPlanner.build` fresh-student fallback: 0 attempted topics → 2 syllabus topics seeded, both marked `signal="syllabus_seed_fallback"`, intent = [`teach`, `teach`, `consolidate`]
+- `WeakAreasPlanner.build` with 1 attempted topic gets 1 attempted + 1 syllabus (deduplicated)
+- `WeakAreasPlanner.build` at mastery 0.65: intent = [`assess`, ...] and `allow_hints=false`, `max_questions=2`
+- `DrillInPlanner.build` returns 3 segments all on the given topic with `allow_hints=[True, True, False]`
+- Registry: `PLANNERS["quick_practice"] is QuickPlanner()` (or equivalent identity check); all three keys resolve; `PLANNERS` iterable
 
 ### Integration tests
 File: `tests/test_practice_endpoints.py`
@@ -491,10 +720,16 @@ File: `tests/test_practice_endpoints.py`
 
 ## 14. Out of scope deliberately
 
-- Exam Mode, Past Paper, Timed Challenge — deferred to a follow-up sub-project (2.5 or later)
-- Adaptive difficulty within a segment — future
-- Custom question count / target minutes on Quick Practice launch — future
-- Practice-specific analytics dashboard for the student — future
-- Sharing sessions or leaderboards — future
-- Multi-subject picker inside practice modes — waits for multi-subject in general
-- Practice on strong topics (drilling into topics you already know) — non-goal by design
+- Exam Mode, Past Paper, Timed Challenge — deferred to a follow-up sub-project (2.5 or later). The registry pattern in Section 6 means adding these is drop-in-a-file.
+- Adaptive difficulty within a segment — future.
+- Custom question count / target minutes on Quick Practice launch — future.
+- Practice-specific analytics dashboard for the student — future.
+- Sharing sessions or leaderboards — future.
+- Multi-subject picker inside practice modes — waits for multi-subject in general.
+- Practice on strong topics (drilling into topics you already know) — non-goal by design.
+
+### Future work explicitly noted (from design brainstorming)
+
+- **Quick Practice "just start" evolution.** Add sibling `QuickPlanner` variants in the registry — `QuickestWeakPlanner` ("continue your weakest unfinished area"), `SurpriseMePlanner` ("random topic in the medium band") — selectable via a small default-mode preference or single-tap default. No engine change; new planner classes only.
+- **Cognitive progression rework for Drill-in.** Refine the current `teach → reinforce → assess` (already loosely mapped to worked example → guided → independent) into a richer 4-stage sequence: `worked_example → guided → independent → challenge`. Requires either new segment intents in the enum or refined `system_prompt_addendum` per stage. Design refinement, not urgent.
+- **`target_minutes` → `estimated_effort_sec` refactor.** When we have enough real session data to calibrate durations, replace static `target_minutes` on segments with `estimated_effort_sec` and let the frontend format it as time. Cross-cutting change touching all planners + segment schemas + the dashboard's countdown copy — best done as its own small refactor sub-project.
