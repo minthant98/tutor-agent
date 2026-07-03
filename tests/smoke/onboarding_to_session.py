@@ -91,6 +91,39 @@ def main() -> None:
     assert d["target_grade"] == "A*", d
     assert len(d["today_focus"]["segment_plan"]) == 3, d
 
+    print("Smoke: /practice/topics")
+    topics_resp = _get("/api/v1/practice/topics?subject=pure_mathematics", h)
+    topics = topics_resp.json()
+    assert isinstance(topics, list) and len(topics) > 0, topics
+
+    print("Smoke: quick_practice session start")
+    first_topic = topics[0]["topic_id"]
+    r = requests.post(
+        f"{BASE}/api/v1/sessions/start",
+        json={"subject": "pure_mathematics", "session_type": "quick_practice", "topic": first_topic},
+        headers=h, timeout=30,
+    )
+    r.raise_for_status()
+    assert "session_id" in r.json()
+
+    print("Smoke: weak_areas session start")
+    r = requests.post(
+        f"{BASE}/api/v1/sessions/start",
+        json={"subject": "pure_mathematics", "session_type": "weak_areas"},
+        headers=h, timeout=30,
+    )
+    r.raise_for_status()
+    assert "session_id" in r.json()
+
+    print("Smoke: drill_in session start")
+    r = requests.post(
+        f"{BASE}/api/v1/sessions/start",
+        json={"subject": "pure_mathematics", "session_type": "drill_in", "topic": first_topic},
+        headers=h, timeout=30,
+    )
+    r.raise_for_status()
+    assert "session_id" in r.json()
+
     print("SMOKE OK")
 
 

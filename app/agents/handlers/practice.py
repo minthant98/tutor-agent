@@ -53,6 +53,8 @@ class PracticeHandler:
 
         # Termination: correct OR max questions hit
         if correct or cfg["questions_asked"] >= MAX_QUESTIONS:
+            if correct:
+                cfg["questions_correct"] = cfg.get("questions_correct", 0) + 1
             return {
                 "tutor_message": eval_result.get("feedback", ""),
                 "structured_cards": [{"type": "evaluation", "data": eval_result}],

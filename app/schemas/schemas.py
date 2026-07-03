@@ -8,7 +8,13 @@ class StartSessionRequest(BaseModel):
     subject: str = Field(description="mathematics, physics, chemistry, biology")
     exam_date: str | None = Field(None, description="ISO date: 2026-06-15")
     topic: str | None = None
-    session_type: Literal["practice", "diagnostic"] = "practice"
+    session_type: Literal[
+        "practice",
+        "diagnostic",
+        "quick_practice",
+        "weak_areas",
+        "drill_in",
+    ] = "practice"
     segment_plan: list[dict] | None = None  # optional preseeded plan (e.g. from Today's Focus)
     return_to: str | None = None  # for onboarding diagnostic — where to route on completion
 

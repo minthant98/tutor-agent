@@ -253,3 +253,18 @@ export interface NotificationListOut {
 export interface MarkReadIn {
   ids: string[]
 }
+
+// ── Practice ──────────────────────────────────────────────────────────────────
+
+export interface PracticeTopic {
+  topic_id: string;
+  topic_name: string;
+  mastery_pct: number;
+  has_attempts: boolean;
+}
+
+export interface StartSessionResponse {
+  session_id: string;
+  message: string;
+  is_new_student: boolean;
+}

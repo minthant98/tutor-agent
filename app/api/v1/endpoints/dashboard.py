@@ -9,7 +9,7 @@ strong/weak topics, and subject switcher options — all in one round-trip.
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_student
@@ -28,6 +28,7 @@ from app.schemas.dashboard import (
 )
 from app.services import readiness_service, today_focus_service
 from app.services.learner_profile_service import is_supported_combo
+from app.services.planners import PRACTICE_SESSION_TYPES
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -58,6 +59,39 @@ async def get_dashboard(
 
     redis = get_redis()
 
+    # ── Stale-session auto-close ───────────────────────────────────────────────
+    # Practice modes: 1h window. Today's Focus + diagnostic: 24h window.
+    now = datetime.now(timezone.utc)
+    practice_cutoff = now - timedelta(hours=1)
+    default_cutoff = now - timedelta(hours=24)
+
+    # Practice modes: auto-close at 1h
+    await db.execute(
+        update(TutorSession)
+        .where(
+            TutorSession.student_id == student.id,
+            TutorSession.subject == subject,
+            TutorSession.ended_at.is_(None),
+            TutorSession.session_type.in_(PRACTICE_SESSION_TYPES),
+            TutorSession.started_at < practice_cutoff,
+        )
+        .values(ended_at=TutorSession.started_at + timedelta(hours=1))
+    )
+
+    # Non-practice: auto-close at 24h
+    await db.execute(
+        update(TutorSession)
+        .where(
+            TutorSession.student_id == student.id,
+            TutorSession.subject == subject,
+            TutorSession.ended_at.is_(None),
+            TutorSession.session_type.not_in(PRACTICE_SESSION_TYPES),
+            TutorSession.started_at < default_cutoff,
+        )
+        .values(ended_at=TutorSession.started_at + timedelta(hours=24))
+    )
+    await db.flush()
+
     # 3. Readiness
     await readiness_service.write_snapshot_if_first_today(db, student.id, subject)
     readiness_pct = await readiness_service.compute_readiness_pct(
@@ -68,7 +102,7 @@ async def get_dashboard(
     # 4. Today's focus
     today_focus = await today_focus_service.get_or_generate(db, redis, student.id, subject)
 
-    # 5. Resume session detection (active session with no ended_at)
+    # 5. Resume session detection (active Today's Focus / diagnostic only — practice modes excluded)
     rs_row = (
         await db.execute(
             select(TutorSession)
@@ -76,6 +110,7 @@ async def get_dashboard(
                 TutorSession.student_id == student.id,
                 TutorSession.subject == subject,
                 TutorSession.ended_at.is_(None),
+                TutorSession.session_type.in_(["practice", "diagnostic"]),
             )
             .order_by(TutorSession.started_at.desc())
         )
@@ -83,20 +118,13 @@ async def get_dashboard(
 
     resume = None
     if rs_row and rs_row.started_at:
-        age_hours = (datetime.now(timezone.utc) - rs_row.started_at).total_seconds() / 3600
-        if age_hours <= 24:
-            # Active — offer to resume
-            plan = rs_row.segment_plan or []
-            if rs_row.current_segment_idx < len(plan):
-                resume = ResumeSessionOut(
-                    session_id=str(rs_row.id),
-                    completed_segments=rs_row.current_segment_idx,
-                    total_segments=len(plan),
-                )
-        else:
-            # Stale — auto-close at started_at + 24h
-            rs_row.ended_at = rs_row.started_at + timedelta(hours=24)
-            await db.flush()
+        plan = rs_row.segment_plan or []
+        if rs_row.current_segment_idx < len(plan):
+            resume = ResumeSessionOut(
+                session_id=str(rs_row.id),
+                completed_segments=rs_row.current_segment_idx,
+                total_segments=len(plan),
+            )
 
     # 6. Strong / weak topics from mastery state
     mastery_rows = (

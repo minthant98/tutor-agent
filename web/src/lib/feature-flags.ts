@@ -7,7 +7,8 @@ export type StrideFlag =
   | "onboarding_v2"
   | "session_engine_v2"
   | "notifications_v2"
-  | "account_v2";
+  | "account_v2"
+  | "practice_v2";
 
 const KNOWN_FLAGS: ReadonlyArray<StrideFlag> = [
   "dashboard_v2",
@@ -15,6 +16,7 @@ const KNOWN_FLAGS: ReadonlyArray<StrideFlag> = [
   "session_engine_v2",
   "notifications_v2",
   "account_v2",
+  "practice_v2",
 ];
 
 export function useFeatureFlag(flag: StrideFlag, defaultValue = true): boolean {

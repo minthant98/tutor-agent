@@ -22,6 +22,7 @@ from app.schemas.schemas import (
     TopicMastery,
 )
 from app.agents.tutor_agent import generate_opening_message
+from app.schemas.planner_reason import PlannerReasonModel
 from app.services.session_service import stream_response, _rebuild_resume_state
 from app.workflows.state import SessionState, initial_state
 
@@ -53,8 +54,12 @@ async def start_session(
     student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    # Build diagnostic segment plan if requested
-    diagnostic_plan: list[dict] = []
+    from app.services.planners import PLANNERS
+
+    resolved_plan: list[dict] = []
+    planner_reason: dict | None = None
+    practice_mode: str | None = None
+
     if body.session_type == "diagnostic":
         from app.core.syllabus_seed import EDEXCEL_9MA0_TOPICS
         diagnostic_plan = [
@@ -71,9 +76,18 @@ async def start_session(
             }
             for i, t in enumerate(EDEXCEL_9MA0_TOPICS[:7])
         ]
-
-    # Use provided segment_plan or the diagnostic plan
-    resolved_plan = body.segment_plan or (diagnostic_plan if body.session_type == "diagnostic" else [])
+        resolved_plan = body.segment_plan or diagnostic_plan
+    elif body.session_type in PLANNERS:
+        planner = PLANNERS[body.session_type]
+        if planner.requires_topic and not body.topic:
+            raise HTTPException(400, f"topic required for {body.session_type}")
+        result = await planner.build(db, student.id, body.subject, body.topic)
+        resolved_plan = result["plan"]
+        planner_reason = result["reason"]
+        practice_mode = body.session_type
+    else:
+        # session_type == "practice" — Today's Focus or resumed session
+        resolved_plan = body.segment_plan or []
 
     db_session = TutorSession(
         student_id=student.id,
@@ -95,6 +109,7 @@ async def start_session(
         subscription_tier=student.subscription_tier,
         exam_date=body.exam_date,
         weak_topics=weak_topics,
+        session_type=body.session_type,
     )
     state["session_id"] = str(db_session.id)
 
@@ -121,6 +136,24 @@ async def start_session(
 
     state["conversation_history"].extend(history)
 
+    if planner_reason is not None:
+        try:
+            validated = PlannerReasonModel(**planner_reason)
+            planner_reason = validated.model_dump()
+        except Exception as e:
+            logger.warning("Invalid planner_reason from planner; dropping: %s", e)
+            planner_reason = None
+
+    if planner_reason is not None:
+        state["conversation_history"].append({
+            "role": "system",
+            "content": f"planner_reason:{json.dumps(planner_reason)}",
+            "metadata": {"type": "planner_reason"},
+        })
+
+    # Persist initial conversation history (including planner_reason) to DB messages column
+    db_session.messages = list(state["conversation_history"])
+
     save_session(state)
     await db.commit()
 
@@ -131,7 +164,21 @@ async def start_session(
         "exam_board": student.exam_board,
         "is_new_student": not bool(weak_topics),
         "subscription_tier": student.subscription_tier,
+        "session_type": body.session_type,
     })
+
+    if practice_mode is not None:
+        try:
+            practice_started_props: dict = {
+                "mode": practice_mode,
+                "subject": body.subject,
+                "topic": body.topic,
+            }
+            if planner_reason is not None:
+                practice_started_props["planner_reason"] = planner_reason
+            capture(str(student.id), "practice_started", practice_started_props)
+        except Exception:
+            pass
 
     return StartSessionResponse(
         session_id=state["session_id"],

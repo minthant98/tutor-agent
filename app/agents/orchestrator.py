@@ -6,6 +6,7 @@ session_service.stream_response() calls this instead of run_agent().
 """
 import logging
 from app.agents.handlers import HANDLER_REGISTRY
+from app.services.planners import PRACTICE_SESSION_TYPES
 from app.workflows.state import SessionState
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,32 @@ async def step_session(state: SessionState, db, redis, user_input: str) -> dict:
         else:
             state_changes["session_complete"] = True
             session_complete = True
+            # Emit practice_completed for practice modes
+            try:
+                from app.core.telemetry import capture
+                session_type = state.get("session_type")
+                if session_type in PRACTICE_SESSION_TYPES:
+                    topics_practiced = list({
+                        s["topic"] for s in plan
+                        if s.get("topic") and s["topic"] != "__mistakes__"
+                    })
+                    duration_sec = sum(s.get("target_minutes", 0) for s in plan) * 60
+                    questions_attempted = sum(
+                        (s.get("config", {}).get("questions_asked") or 0) for s in plan
+                    )
+                    questions_correct = sum(
+                        (s.get("config", {}).get("questions_correct") or 0) for s in plan
+                    )
+                    capture(state["student_id"], "practice_completed", {
+                        "mode": session_type,
+                        "subject": state.get("subject"),
+                        "topics_practiced": topics_practiced,
+                        "duration_sec": duration_sec,
+                        "questions_attempted": questions_attempted,
+                        "questions_correct": questions_correct,
+                    })
+            except Exception:
+                pass
 
     return {
         "tutor_message": result.get("tutor_message"),
