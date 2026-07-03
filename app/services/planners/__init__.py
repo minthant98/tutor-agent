@@ -11,10 +11,12 @@ from app.services.planners.base import (
     TopicSelection,
 )
 from app.services.planners.quick import QuickPlanner
+from app.services.planners.weak import WeakAreasPlanner
 from app.services.planners.drill import DrillInPlanner
 
 PLANNERS: dict[str, Planner] = {
     QuickPlanner.session_type: QuickPlanner(),
+    WeakAreasPlanner.session_type: WeakAreasPlanner(),
     DrillInPlanner.session_type: DrillInPlanner(),
 }
 
