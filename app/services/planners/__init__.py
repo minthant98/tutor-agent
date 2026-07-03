@@ -10,8 +10,13 @@ from app.services.planners.base import (
     PlannerReason,
     TopicSelection,
 )
+from app.services.planners.quick import QuickPlanner
+from app.services.planners.drill import DrillInPlanner
 
-PLANNERS: dict[str, Planner] = {}
+PLANNERS: dict[str, Planner] = {
+    QuickPlanner.session_type: QuickPlanner(),
+    DrillInPlanner.session_type: DrillInPlanner(),
+}
 
 __all__ = [
     "Planner",
