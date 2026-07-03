@@ -20,10 +20,13 @@ PLANNERS: dict[str, Planner] = {
     DrillInPlanner.session_type: DrillInPlanner(),
 }
 
+PRACTICE_SESSION_TYPES: frozenset[str] = frozenset(PLANNERS.keys())
+
 __all__ = [
     "Planner",
     "BuildResult",
     "PlannerReason",
     "TopicSelection",
     "PLANNERS",
+    "PRACTICE_SESSION_TYPES",
 ]

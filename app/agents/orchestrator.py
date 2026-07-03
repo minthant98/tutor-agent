@@ -6,6 +6,7 @@ session_service.stream_response() calls this instead of run_agent().
 """
 import logging
 from app.agents.handlers import HANDLER_REGISTRY
+from app.services.planners import PRACTICE_SESSION_TYPES
 from app.workflows.state import SessionState
 
 logger = logging.getLogger(__name__)
@@ -155,7 +156,7 @@ async def step_session(state: SessionState, db, redis, user_input: str) -> dict:
             try:
                 from app.core.telemetry import capture
                 session_type = state.get("session_type")
-                if session_type in ("quick_practice", "weak_areas", "drill_in"):
+                if session_type in PRACTICE_SESSION_TYPES:
                     topics_practiced = list({
                         s["topic"] for s in plan
                         if s.get("topic") and s["topic"] != "__mistakes__"

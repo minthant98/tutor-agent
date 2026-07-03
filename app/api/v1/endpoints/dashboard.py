@@ -9,7 +9,7 @@ strong/weak topics, and subject switcher options — all in one round-trip.
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_student
@@ -28,6 +28,7 @@ from app.schemas.dashboard import (
 )
 from app.services import readiness_service, today_focus_service
 from app.services.learner_profile_service import is_supported_combo
+from app.services.planners import PRACTICE_SESSION_TYPES
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -60,27 +61,35 @@ async def get_dashboard(
 
     # ── Stale-session auto-close ───────────────────────────────────────────────
     # Practice modes: 1h window. Today's Focus + diagnostic: 24h window.
-    PRACTICE_MODES = ("quick_practice", "weak_areas", "drill_in")
-
     now = datetime.now(timezone.utc)
     practice_cutoff = now - timedelta(hours=1)
     default_cutoff = now - timedelta(hours=24)
 
-    stale_rows = (await db.execute(
-        select(TutorSession).where(
+    # Practice modes: auto-close at 1h
+    await db.execute(
+        update(TutorSession)
+        .where(
             TutorSession.student_id == student.id,
             TutorSession.subject == subject,
             TutorSession.ended_at.is_(None),
+            TutorSession.session_type.in_(PRACTICE_SESSION_TYPES),
+            TutorSession.started_at < practice_cutoff,
         )
-    )).scalars().all()
+        .values(ended_at=TutorSession.started_at + timedelta(hours=1))
+    )
 
-    for s in stale_rows:
-        if s.session_type in PRACTICE_MODES:
-            if s.started_at and s.started_at < practice_cutoff:
-                s.ended_at = s.started_at + timedelta(hours=1)
-        else:
-            if s.started_at and s.started_at < default_cutoff:
-                s.ended_at = s.started_at + timedelta(hours=24)
+    # Non-practice: auto-close at 24h
+    await db.execute(
+        update(TutorSession)
+        .where(
+            TutorSession.student_id == student.id,
+            TutorSession.subject == subject,
+            TutorSession.ended_at.is_(None),
+            TutorSession.session_type.not_in(PRACTICE_SESSION_TYPES),
+            TutorSession.started_at < default_cutoff,
+        )
+        .values(ended_at=TutorSession.started_at + timedelta(hours=24))
+    )
     await db.flush()
 
     # 3. Readiness

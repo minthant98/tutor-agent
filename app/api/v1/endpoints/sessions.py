@@ -22,6 +22,7 @@ from app.schemas.schemas import (
     TopicMastery,
 )
 from app.agents.tutor_agent import generate_opening_message
+from app.schemas.planner_reason import PlannerReasonModel
 from app.services.session_service import stream_response, _rebuild_resume_state
 from app.workflows.state import SessionState, initial_state
 
@@ -108,6 +109,7 @@ async def start_session(
         subscription_tier=student.subscription_tier,
         exam_date=body.exam_date,
         weak_topics=weak_topics,
+        session_type=body.session_type,
     )
     state["session_id"] = str(db_session.id)
 
@@ -135,6 +137,14 @@ async def start_session(
     state["conversation_history"].extend(history)
 
     if planner_reason is not None:
+        try:
+            validated = PlannerReasonModel(**planner_reason)
+            planner_reason = validated.model_dump()
+        except Exception as e:
+            logger.warning("Invalid planner_reason from planner; dropping: %s", e)
+            planner_reason = None
+
+    if planner_reason is not None:
         state["conversation_history"].append({
             "role": "system",
             "content": f"planner_reason:{json.dumps(planner_reason)}",
@@ -159,12 +169,14 @@ async def start_session(
 
     if practice_mode is not None:
         try:
-            capture(str(student.id), "practice_started", {
+            practice_started_props: dict = {
                 "mode": practice_mode,
                 "subject": body.subject,
                 "topic": body.topic,
-                "planner_reason": planner_reason,
-            })
+            }
+            if planner_reason is not None:
+                practice_started_props["planner_reason"] = planner_reason
+            capture(str(student.id), "practice_started", practice_started_props)
         except Exception:
             pass
 
