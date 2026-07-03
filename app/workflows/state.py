@@ -57,7 +57,13 @@ class SessionState(TypedDict):
     error: str | None
 
     # Segment-based engine (v2)
-    session_type: Literal["practice", "diagnostic"]
+    session_type: Literal[
+        "practice",
+        "diagnostic",
+        "quick_practice",
+        "weak_areas",
+        "drill_in",
+    ]
     session_version: int  # 1 = legacy single-phase, 2 = segment-based
     segment_plan: list[Segment]
     current_segment_idx: int
