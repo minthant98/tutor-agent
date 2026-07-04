@@ -242,9 +242,81 @@ app/services/marker/
   ],
   "summary": "Solid method setup but arithmetic slip and missing final answer.",
   "improvement": "Always box or underline your final numerical answer.",
-  "used_generated_mark_scheme": false
+  "used_generated_mark_scheme": false,
+
+  "readiness_before": 42.0,
+  "readiness_after": 48.0,
+  "readiness_delta": 6.0,
+  "topic_mastery_before": 0.35,
+  "topic_mastery_after": 0.52
 }
 ```
+
+### Readiness as North Star — mastery + readiness delta
+
+Grading is not a scored event in isolation; it must feed the same readiness metric everything else in Stride feeds. After the grading LLM returns, the orchestrator does one more step before setting `status=graded`:
+
+1. **Update mastery** for the graded topic (same helper used by the practice handler in sub-project #2):
+   - `mastery_delta = 0.15` if `grade_pct >= 70`
+   - `mastery_delta = 0.05` if `grade_pct 40-69`
+   - `mastery_delta = -0.05` if `grade_pct < 40`
+   - Clamp resulting `mastery_score` to `[0.0, 1.0]`
+   - Bump `total_attempts` and `last_reviewed_at`
+2. **Compute readiness before + after** via existing `readiness_service.compute_readiness_pct` (sub-project #1) — cached before the mastery update, recomputed after
+3. **Persist all four values** (`readiness_before`, `readiness_after`, `topic_mastery_before`, `topic_mastery_after`) inside `feedback_json`
+4. **Emit a `readiness_changed` PostHog event** if `abs(readiness_delta) > 0.1`, matching the existing shape from sub-project #1
+
+The results view (§8) surfaces `readiness_delta` as a first-class element under the marks banner. This ties Exam Marker into the same coherent narrative Alex speaks in every other surface: "your work made you N% more ready."
+
+### Alex has memory — student history context in grading
+
+The grading LLM currently sees only the current submission's question / answer / mark scheme. It should also see the student's recent work on this topic so feedback can reference patterns, mistakes repeated, or improvements noticed. This is what makes Alex feel remembered, not generic.
+
+**New helper in `grader_llm.py`:**
+
+```python
+async def _load_student_topic_context(
+    db: AsyncSession, student_id: UUID, subject: str, topic: str
+) -> StudentTopicContext
+```
+
+Returns:
+```python
+{
+    "recent_grades": [       # last 3 from graded_uploads on same topic
+        {"grade_pct": 33, "marks_awarded": 2, "max_marks": 6,
+         "improvement": "Always show working step-by-step",
+         "days_ago": 4},
+        ...
+    ],
+    "mastery_trend": {       # 30-day view from readiness_snapshots (sub-project #1)
+        "prev_mastery": 0.28, "current_mastery": 0.35, "trend": "up"
+    },
+    "recent_practice_mistakes": [  # last 3 below-threshold evaluations
+        "Substitution slip with x=2 vs x=3",
+        "Forgot +C on indefinite integral",
+        ...
+    ]
+}
+```
+
+`grade(question, mark_scheme, answer, max_marks, student_context)` gains the `student_context` argument (nullable — fresh students have no context, prompt handles absence gracefully). Prompt gains:
+
+```
+<student_history>
+This student has recently:
+- Attempted this topic 3 times; last 3 grades: 33%, 45%, 60% (trending up)
+- Repeated mistake noticed: forgetting to include +C on indefinite integrals
+- Improvement noticed: their method-selection has become more consistent
+</student_history>
+
+Use this context to make your feedback specific. Reference patterns
+where relevant. Do NOT invent memories — only use what's listed.
+```
+
+This directly enables Alex to say things like *"You made this same substitution slip in your last attempt — build a habit of double-checking"* or *"Your method-selection is noticeably crisper than a week ago"* without hallucinating. The prompt explicitly guards against invented references.
+
+Cost impact: grading prompt grows by 200–400 tokens per submission. Negligible.
 
 ### `orchestrator.py` — pipeline glue
 
@@ -366,6 +438,16 @@ Layout (top to bottom):
 ### Results view (rendered in place at `/mark`)
 
 - **Grade banner:** `4 / 6 marks · 67%` (color-coded: red < 40%, amber 40-70%, emerald ≥ 70%)
+- **Readiness delta (North Star surface):** immediately below the grade banner in emerald copy:
+  ```
+  Integration readiness: 42% → 48%  (+6%)
+  ```
+  If `readiness_delta > 0`, use emerald color and `+X%`. If negative (rare — bad grade dropped mastery), use amber and `−X%`. If zero, hide the line.
+- **Exam-date anchor line** (subtle grey, below readiness delta):
+  ```
+  132 days until Pure Maths exam · You're on track for a B
+  ```
+  Computed from `learner_subjects.exam_date` + `predict_grade(readiness_after)` (existing `app/core/grade_prediction.py`). Skip the "on track for X" clause if `exam_date` is null.
 - **Question** at top, collapsible (default collapsed)
 - **Criteria list** — each row:
   - `✓` (emerald) or `✗` (slate) icon
@@ -431,7 +513,8 @@ Get your written work graded like an examiner would.
 | `marker_submission_created` | `POST /marker/submissions` succeeds | `input_type` (`photo`\|`typed`), `subscription_tier`, `monthly_count` |
 | `marker_extraction_succeeded` | Vision returns non-illegible text | `submission_id, extracted_char_count, model_used` |
 | `marker_extraction_failed` | Vision returns `__ILLEGIBLE__` or throws | `reason` (`illegible`\|`llm_error`) |
-| `marker_grading_succeeded` | `status=graded` | `marks_awarded, max_marks, grade_pct, criteria_count, used_generated_mark_scheme` |
+| `marker_grading_succeeded` | `status=graded` | `marks_awarded, max_marks, grade_pct, criteria_count, used_generated_mark_scheme, readiness_delta, topic_mastery_delta` |
+| `readiness_changed` (existing) | Orchestrator computes `abs(readiness_delta) > 0.1` after grading | Existing shape from sub-project #1: `subject, prev_pct, new_pct, delta` |
 | `marker_grading_failed` | `status=error` | `error_stage` (`vision`\|`grading`), `model_used`, `error_message` |
 | `marker_quota_hit` | Free student's 6th monthly attempt returns 429 | `subject` |
 | `marker_history_viewed` | Frontend renders `/mark/history` | `page, submission_count` |
