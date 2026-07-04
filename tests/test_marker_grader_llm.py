@@ -152,3 +152,25 @@ async def test_load_student_topic_context_returns_recent_grades(
     assert len(ctx["recent_grades"]) == 1
     assert ctx["recent_grades"][0]["grade_pct"] == pytest.approx(33.3, abs=0.5)
     assert ctx["mastery_trend"]["current_mastery"] == pytest.approx(0.35)
+
+
+@pytest.mark.asyncio
+async def test_load_context_handles_tz_aware_datetime_from_committed_row(
+    db_session, student_with_subject, syllabus_edexcel_seeded
+):
+    """Regression: don't call .replace(tzinfo=...) on a tz-aware datetime."""
+    db_session.add(GradedUpload(
+        student_id=student_with_subject.id, subject="pure_mathematics",
+        exam_board="edexcel", question_id="q_tz", question_text="Q",
+        mark_scheme="MS", max_marks=6, input_type="typed", answer_text="A",
+        marks_awarded=3, grade_pct=50.0,
+        feedback_json={"improvement": ""},
+        status="graded",
+    ))
+    await db_session.commit()  # forces server_default to fire → tz-aware created_at
+
+    # Should not raise
+    ctx = await grader_llm._load_student_topic_context(
+        db_session, student_with_subject.id, "pure_mathematics", "integration_basics",
+    )
+    assert len(ctx["recent_grades"]) >= 1

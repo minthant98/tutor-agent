@@ -102,7 +102,7 @@ async def process_submission(db: AsyncSession, submission_id: UUID) -> None:
             "readiness_delta": round(readiness_after - readiness_before, 1),
             "topic_mastery_before": round(mastery_before, 2),
             "topic_mastery_after": round(mastery_after, 2),
-            "used_generated_mark_scheme": False,  # set by question_selector; defaults false
+            "used_generated_mark_scheme": upload.used_generated_mark_scheme,
         }
         upload.status = "graded"
         upload.updated_at = datetime.now(timezone.utc)

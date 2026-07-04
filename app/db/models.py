@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, date
 
+import sqlalchemy as sa
 from sqlalchemy import (
     JSON, Boolean, Date, DateTime, Float,
     ForeignKey, Integer, String, UniqueConstraint, func, text,
@@ -245,6 +246,10 @@ class GradedUpload(Base):
     marks_awarded: Mapped[int | None] = mapped_column(Integer, nullable=True)
     grade_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     feedback_json: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+
+    used_generated_mark_scheme: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default=sa.text("false")
+    )
 
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)

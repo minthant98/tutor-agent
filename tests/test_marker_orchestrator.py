@@ -126,6 +126,25 @@ async def test_orchestrator_idempotent_skip_already_graded(
 
 
 @pytest.mark.asyncio
+async def test_orchestrator_feedback_json_reflects_used_generated_mark_scheme(
+    db_session, student_with_subject, syllabus_edexcel_seeded
+):
+    """Regression: feedback_json.used_generated_mark_scheme must read from the upload
+    row, not be hardcoded to False."""
+    upload = _make_upload(student_with_subject.id, input_type="typed")
+    upload.used_generated_mark_scheme = True
+    db_session.add(upload)
+    await db_session.flush()
+
+    with patch.object(grader_llm, "grade", new=AsyncMock(return_value=VALID_GRADING)):
+        await orchestrator.process_submission(db_session, upload.id)
+
+    await db_session.refresh(upload)
+    assert upload.status == "graded"
+    assert upload.feedback_json["used_generated_mark_scheme"] is True
+
+
+@pytest.mark.asyncio
 async def test_orchestrator_updates_mastery_on_graded(
     db_session, student_with_subject, syllabus_edexcel_seeded
 ):

@@ -19,6 +19,7 @@ def test_graded_upload_has_expected_columns():
         "input_type", "photo_path", "answer_text",
         "marks_awarded", "grade_pct", "feedback_json",
         "status", "error_message", "created_at", "updated_at",
+        "used_generated_mark_scheme",
     }
     assert expected.issubset(set(cols.keys()))
 
