@@ -133,3 +133,4 @@ stripe
 sentry-sdk[fastapi]
 posthog
 resend
+supabase>=2.0.0
