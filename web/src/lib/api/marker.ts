@@ -17,10 +17,8 @@ export interface CreateSubmissionBody {
 }
 
 export const markerApi = {
-  getNextQuestion: (topic?: string) => {
-    const q = topic ? `?topic=${encodeURIComponent(topic)}` : "";
-    return apiFetch<QuestionCandidate>(`/marker/next-question${q}`);
-  },
+  getNextQuestion: () =>
+    apiFetch<QuestionCandidate>("/marker/next-question"),
   createSubmission: (body: CreateSubmissionBody) =>
     apiFetch<SubmissionCreateResponse>("/marker/submissions", {
       method: "POST",

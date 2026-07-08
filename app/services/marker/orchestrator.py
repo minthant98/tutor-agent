@@ -116,6 +116,7 @@ async def process_submission(db: AsyncSession, submission_id: UUID) -> None:
             criteria_count=len(grading_result.get("criteria", [])),
             readiness_delta=upload.feedback_json["readiness_delta"],
             topic_mastery_delta=(mastery_after - mastery_before),
+            used_generated_mark_scheme=upload.used_generated_mark_scheme,
         )
         if abs(readiness_after - readiness_before) > 0.1:
             _capture_event("readiness_changed", upload.student_id,

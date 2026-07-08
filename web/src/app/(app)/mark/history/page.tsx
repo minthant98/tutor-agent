@@ -1,16 +1,26 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { markerApi } from "@/lib/api/marker";
 import type { SubmissionOut } from "@/lib/types";
 import { HistoryList } from "@/components/marker/history-list";
+import { useFeatureFlag } from "@/lib/feature-flags";
 
 const PAGE_SIZE = 10;
 
 export default function HistoryPage() {
+  const router = useRouter();
+  const markerEnabled = useFeatureFlag("marker_v2", true);
   const [items, setItems] = useState<SubmissionOut[]>([]);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!markerEnabled) {
+      router.replace("/dashboard");
+    }
+  }, [markerEnabled, router]);
 
   useEffect(() => {
     setLoading(true);

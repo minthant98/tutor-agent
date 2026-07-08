@@ -8,17 +8,17 @@ import { QuestionCard } from "@/components/marker/question-card";
 import { AnswerInput } from "@/components/marker/answer-input";
 import { GradingProgress } from "@/components/marker/grading-progress";
 import { ResultsView } from "@/components/marker/results-view";
-import { TopicPickerModal } from "@/components/marker/topic-picker-modal";
+import { useFeatureFlag } from "@/lib/feature-flags";
 
 type View = "loading" | "answering" | "grading" | "results" | "error";
 
 export default function MarkPage() {
   const router = useRouter();
+  const markerEnabled = useFeatureFlag("marker_v2", true);
   const [view, setView] = useState<View>("loading");
   const [question, setQuestion] = useState<QuestionCandidate | null>(null);
   const [submission, setSubmission] = useState<SubmissionOut | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [dashboardMeta, setDashboardMeta] = useState<{
     exam_date: string | null;
     days_until_exam: number | null;
@@ -26,10 +26,16 @@ export default function MarkPage() {
   } | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const loadQuestion = useCallback(async (topic?: string) => {
+  useEffect(() => {
+    if (!markerEnabled) {
+      router.replace("/dashboard");
+    }
+  }, [markerEnabled, router]);
+
+  const loadQuestion = useCallback(async () => {
     setView("loading");
     try {
-      const q = await markerApi.getNextQuestion(topic);
+      const q = await markerApi.getNextQuestion();
       setQuestion(q);
       setView("answering");
     } catch {
@@ -126,7 +132,7 @@ export default function MarkPage() {
       {view === "loading" && <p>Loading question…</p>}
 
       {(view === "answering" || view === "grading" || view === "results") && question && (
-        <QuestionCard question={question} onChangeTopic={() => setPickerOpen(true)} />
+        <QuestionCard question={question} />
       )}
 
       {view === "answering" && (
@@ -161,17 +167,6 @@ export default function MarkPage() {
             Try again
           </button>.
         </section>
-      )}
-
-      {pickerOpen && question && (
-        <TopicPickerModal
-          subject="pure_mathematics"
-          onPick={(topic) => {
-            setPickerOpen(false);
-            loadQuestion(topic);
-          }}
-          onClose={() => setPickerOpen(false)}
-        />
       )}
     </div>
   );

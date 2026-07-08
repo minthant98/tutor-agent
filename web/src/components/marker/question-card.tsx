@@ -3,10 +3,8 @@ import type { QuestionCandidate } from "@/lib/types";
 
 export function QuestionCard({
   question,
-  onChangeTopic,
 }: {
   question: QuestionCandidate;
-  onChangeTopic: () => void;
 }) {
   return (
     <section className="rounded-lg border border-[var(--border)] bg-white p-5">
@@ -19,12 +17,6 @@ export function QuestionCard({
             {question.paper_ref}
           </span>
         </div>
-        <button
-          onClick={onChangeTopic}
-          className="text-sm text-[var(--blue)] hover:underline"
-        >
-          Change topic ▾
-        </button>
       </header>
       <div className="whitespace-pre-wrap text-base">
         {question.question_text}
