@@ -41,3 +41,26 @@ async def test_readyz_structure(unauth_client, empty_db):
         assert r.status_code == 503
         detail = body.get("detail", {})
         assert "status" in detail or "failures" in detail
+
+
+@pytest.mark.asyncio
+async def test_readyz_reports_bucket_missing(unauth_client):
+    from unittest.mock import AsyncMock, patch
+    from app.services.marker import storage
+    with patch.object(storage, "check_bucket_exists", new=AsyncMock(return_value=False)):
+        r = await unauth_client.get("/readyz")
+    assert r.status_code == 503
+    body = r.json()
+    assert "storage" in str(body).lower() or "bucket" in str(body).lower()
+
+
+@pytest.mark.asyncio
+async def test_readyz_passes_when_bucket_exists(unauth_client, syllabus_edexcel_seeded):
+    import os
+    from unittest.mock import AsyncMock, patch
+    from app.services.marker import storage
+    # Patch GROQ_API_KEY into os.environ so the existing key check passes in any env
+    with patch.object(storage, "check_bucket_exists", new=AsyncMock(return_value=True)), \
+         patch.dict(os.environ, {"GROQ_API_KEY": "test-key"}):
+        r = await unauth_client.get("/readyz")
+    assert r.status_code == 200
