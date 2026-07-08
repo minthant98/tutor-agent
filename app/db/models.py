@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime, date
 
+import sqlalchemy as sa
 from sqlalchemy import (
     JSON, Boolean, Date, DateTime, Float,
-    ForeignKey, Integer, String, UniqueConstraint, func,
+    ForeignKey, Integer, String, UniqueConstraint, func, text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -221,3 +222,41 @@ class TodayFocusHistory(Base):
 
     __table_args__ = (UniqueConstraint("student_id", "subject", "focus_date",
                                        name="uq_today_focus_student_subject_date"),)
+
+
+class GradedUpload(Base):
+    __tablename__ = "graded_uploads"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subject: Mapped[str] = mapped_column(String(100), nullable=False)
+    exam_board: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    question_id: Mapped[str] = mapped_column(String(255), nullable=False)  # Qdrant point id
+    question_text: Mapped[str] = mapped_column(String, nullable=False)     # cached from Qdrant
+    mark_scheme: Mapped[str] = mapped_column(String, nullable=False)       # cached from Qdrant
+    max_marks: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    input_type: Mapped[str] = mapped_column(String(20), nullable=False)    # "photo" | "typed"
+    photo_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    answer_text: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    marks_awarded: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    grade_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    feedback_json: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+
+    used_generated_mark_scheme: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default=sa.text("false")
+    )
+
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )

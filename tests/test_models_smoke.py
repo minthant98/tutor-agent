@@ -4,6 +4,26 @@ from app.db.models import (
 )
 
 
+def test_graded_upload_model_imports():
+    from app.db.models import GradedUpload
+    assert hasattr(GradedUpload, "__tablename__")
+    assert GradedUpload.__tablename__ == "graded_uploads"
+
+
+def test_graded_upload_has_expected_columns():
+    from app.db.models import GradedUpload
+    cols = GradedUpload.__table__.columns
+    expected = {
+        "id", "student_id", "subject", "exam_board",
+        "question_id", "question_text", "mark_scheme", "max_marks",
+        "input_type", "photo_path", "answer_text",
+        "marks_awarded", "grade_pct", "feedback_json",
+        "status", "error_message", "created_at", "updated_at",
+        "used_generated_mark_scheme",
+    }
+    assert expected.issubset(set(cols.keys()))
+
+
 def test_new_models_importable():
     for cls in (LearnerSubject, SyllabusTopic, ReadinessSnapshot,
                 Notification, TodayFocusHistory):

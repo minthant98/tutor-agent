@@ -12,6 +12,7 @@ import { TodayFocusCard } from "@/components/dashboard/today-focus-card";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { TopicsList } from "@/components/dashboard/topics-list";
 import { PracticeCard } from "@/components/dashboard/practice-card";
+import { MarkMyWorkCard } from "@/components/marker/mark-my-work-card";
 import { FeatureFlag } from "@/components/shell/feature-flag";
 import type { DashboardPayload } from "@/lib/types";
 
@@ -55,6 +56,10 @@ export default function DashboardPage() {
 
       <FeatureFlag flag="practice_v2" fallback={null}>
         <PracticeCard subject={subject} />
+      </FeatureFlag>
+
+      <FeatureFlag flag="marker_v2" fallback={null}>
+        <MarkMyWorkCard subject={subject} />
       </FeatureFlag>
 
       {data.recent_activity && <RecentActivity data={data.recent_activity} />}

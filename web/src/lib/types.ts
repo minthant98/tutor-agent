@@ -268,3 +268,59 @@ export interface StartSessionResponse {
   message: string;
   is_new_student: boolean;
 }
+
+// ── Marker ────────────────────────────────────────────────────────────────────
+
+export interface QuestionCandidate {
+  question_id: string;
+  question_text: string;
+  mark_scheme: string;
+  max_marks: number;
+  paper_ref: string;
+  topic: string;
+  used_generated_mark_scheme: boolean;
+}
+
+export interface SubmissionCreateResponse {
+  submission_id: string;
+  upload_url: string | null;
+  upload_path: string | null;
+}
+
+export interface GradingCriterion {
+  code: string;
+  description: string;
+  awarded: boolean;
+  comment: string;
+}
+
+export interface FeedbackJson {
+  marks_awarded: number;
+  criteria: GradingCriterion[];
+  summary: string;
+  improvement: string;
+  readiness_before: number;
+  readiness_after: number;
+  readiness_delta: number;
+  topic_mastery_before: number;
+  topic_mastery_after: number;
+  used_generated_mark_scheme?: boolean;
+}
+
+export interface SubmissionOut {
+  id: string;
+  status: "pending" | "extracting" | "grading" | "graded" | "error";
+  subject: string;
+  exam_board: string;
+  question_id: string;
+  question_text: string;
+  max_marks: number;
+  input_type: "photo" | "typed";
+  answer_text: string | null;
+  marks_awarded: number | null;
+  grade_pct: number | null;
+  feedback_json: FeedbackJson | null;
+  photo_url: string | null;
+  error_message: string | null;
+  created_at: string;
+}

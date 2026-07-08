@@ -124,6 +124,47 @@ def main() -> None:
     r.raise_for_status()
     assert "session_id" in r.json()
 
+    print("Smoke: /marker/next-question")
+    r = requests.get(f"{BASE}/api/v1/marker/next-question", headers=h, timeout=30)
+    r.raise_for_status()
+    q = r.json()
+    assert "question_text" in q and "mark_scheme" in q and "max_marks" in q
+
+    print("Smoke: /marker/submissions (typed)")
+    r = requests.post(f"{BASE}/api/v1/marker/submissions", json={
+        "question_id": q["question_id"], "question_text": q["question_text"],
+        "mark_scheme": q["mark_scheme"], "max_marks": q["max_marks"],
+        "input_type": "typed", "answer_text": "x^2 + C",
+    }, headers=h, timeout=30)
+    r.raise_for_status()
+    sub_id = r.json()["submission_id"]
+
+    r = requests.post(f"{BASE}/api/v1/marker/submissions/{sub_id}/uploaded",
+                     headers=h, timeout=30)
+    r.raise_for_status()
+
+    # Poll for graded (max 30s)
+    for _ in range(30):
+        time.sleep(1)
+        r = requests.get(f"{BASE}/api/v1/marker/submissions/{sub_id}",
+                        headers=h, timeout=30)
+        r.raise_for_status()
+        body = r.json()
+        if body["status"] == "graded":
+            assert body["feedback_json"] is not None
+            assert body["grade_pct"] is not None
+            break
+        elif body["status"] == "error":
+            raise AssertionError(f"Marker error: {body.get('error_message')}")
+    else:
+        raise AssertionError("Marker didn't grade in 30s")
+
+    print("Smoke: /marker/submissions history")
+    r = requests.get(f"{BASE}/api/v1/marker/submissions?limit=10",
+                    headers=h, timeout=30)
+    r.raise_for_status()
+    assert len(r.json()) >= 1
+
     print("SMOKE OK")
 
 

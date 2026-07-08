@@ -51,6 +51,14 @@ async def readyz() -> dict:
     if not os.environ.get("GROQ_API_KEY"):
         failures.append("groq_api_key_missing")
 
+    # 4. Supabase Storage bucket
+    from app.services.marker import storage as _marker_storage
+    try:
+        if not await _marker_storage.check_bucket_exists():
+            failures.append("supabase_storage_bucket_missing")
+    except Exception as exc:
+        failures.append(f"supabase_storage_check_error: {exc}")
+
     if failures:
         raise HTTPException(
             status_code=503,
