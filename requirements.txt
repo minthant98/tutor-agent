@@ -120,7 +120,7 @@ uvicorn==0.46.0
 uvloop==0.22.1
 watchfiles==1.1.1
 websocket-client==1.9.0
-websockets==16.0
+websockets==15.0.1
 xxhash==3.7.0
 zipp==3.23.1
 zstandard==0.25.0
