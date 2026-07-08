@@ -125,9 +125,7 @@ xxhash==3.7.0
 zipp==3.23.1
 zstandard==0.25.0
 redis
-qdrant-client
-langsmith
-sentence-transformers==5.4.1
+qdrant-client==1.17.1
 sympy
 stripe
 sentry-sdk[fastapi]
