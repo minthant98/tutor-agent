@@ -7,7 +7,7 @@ from app.services.marker import grader_llm
 from app.db.models import MasteryState, GradedUpload
 
 
-VALID_LLM_JSON = json.dumps({
+VALID_LLM_RESULT = {
     "marks_awarded": 4,
     "criteria": [
         {"code": "M1", "description": "Applied chain rule",
@@ -21,12 +21,20 @@ VALID_LLM_JSON = json.dumps({
     ],
     "summary": "Solid method setup but arithmetic slip.",
     "improvement": "Always box or underline your final numerical answer.",
-})
+}
+
+
+def _valid_result() -> dict:
+    """Fresh copy of the valid grading result — mutation-safe for retry tests."""
+    return {
+        **VALID_LLM_RESULT,
+        "criteria": [dict(c) for c in VALID_LLM_RESULT["criteria"]],
+    }
 
 
 @pytest.mark.asyncio
 async def test_grade_returns_structured_result():
-    with patch.object(grader_llm, "_call_llm", new=AsyncMock(return_value=VALID_LLM_JSON)):
+    with patch.object(grader_llm.llm, "generate_json", new=AsyncMock(return_value=_valid_result())):
         result = await grader_llm.grade(
             question="Find dy/dx of (x^2+1)^3",
             mark_scheme="M1 chain rule, A1 correct, B1 final",
@@ -40,11 +48,8 @@ async def test_grade_returns_structured_result():
 
 @pytest.mark.asyncio
 async def test_grade_clamps_over_max():
-    over_max_json = json.dumps({
-        "marks_awarded": 10,  # over max
-        "criteria": [], "summary": "s", "improvement": "i",
-    })
-    with patch.object(grader_llm, "_call_llm", new=AsyncMock(return_value=over_max_json)):
+    over_max = {"marks_awarded": 10, "criteria": [], "summary": "s", "improvement": "i"}
+    with patch.object(grader_llm.llm, "generate_json", new=AsyncMock(return_value=over_max)):
         result = await grader_llm.grade(
             question="Q", mark_scheme="MS", answer="A", max_marks=6,
         )
@@ -53,11 +58,8 @@ async def test_grade_clamps_over_max():
 
 @pytest.mark.asyncio
 async def test_grade_clamps_below_zero():
-    neg_json = json.dumps({
-        "marks_awarded": -1,
-        "criteria": [], "summary": "s", "improvement": "i",
-    })
-    with patch.object(grader_llm, "_call_llm", new=AsyncMock(return_value=neg_json)):
+    neg = {"marks_awarded": -1, "criteria": [], "summary": "s", "improvement": "i"}
+    with patch.object(grader_llm.llm, "generate_json", new=AsyncMock(return_value=neg)):
         result = await grader_llm.grade(
             question="Q", mark_scheme="MS", answer="A", max_marks=6,
         )
@@ -72,10 +74,10 @@ async def test_grade_retries_on_invalid_json():
     async def sometimes_valid(*args, **kwargs):
         call_count["n"] += 1
         if call_count["n"] == 1:
-            return "not json"
-        return VALID_LLM_JSON
+            raise ValueError("bad json")
+        return _valid_result()
 
-    with patch.object(grader_llm, "_call_llm", side_effect=sometimes_valid):
+    with patch.object(grader_llm.llm, "generate_json", side_effect=sometimes_valid):
         result = await grader_llm.grade(
             question="Q", mark_scheme="MS", answer="A", max_marks=6,
         )
@@ -85,7 +87,8 @@ async def test_grade_retries_on_invalid_json():
 
 @pytest.mark.asyncio
 async def test_grade_raises_after_two_bad_responses():
-    with patch.object(grader_llm, "_call_llm", new=AsyncMock(return_value="not json")):
+    with patch.object(grader_llm.llm, "generate_json",
+                     new=AsyncMock(side_effect=ValueError("bad json"))):
         with pytest.raises(grader_llm.GradingFailed):
             await grader_llm.grade(question="Q", mark_scheme="MS", answer="A", max_marks=6)
 
@@ -95,9 +98,9 @@ async def test_grade_includes_student_context_in_prompt():
     """When student_context is passed, the prompt should include it."""
     captured_prompt = {}
 
-    async def capture(prompt):
+    async def capture(prompt, system=""):
         captured_prompt["text"] = prompt
-        return VALID_LLM_JSON
+        return _valid_result()
 
     context = {
         "recent_grades": [
@@ -107,7 +110,7 @@ async def test_grade_includes_student_context_in_prompt():
         "mastery_trend": {"prev_mastery": 0.20, "current_mastery": 0.35, "trend": "up"},
         "recent_practice_mistakes": ["forgot +C"],
     }
-    with patch.object(grader_llm, "_call_llm", side_effect=capture):
+    with patch.object(grader_llm.llm, "generate_json", side_effect=capture):
         await grader_llm.grade(
             question="Q", mark_scheme="MS", answer="A", max_marks=6,
             student_context=context,

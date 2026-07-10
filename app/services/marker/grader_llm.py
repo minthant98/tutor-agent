@@ -77,8 +77,11 @@ async def grade(
     last_error: Exception | None = None
     for attempt in range(RETRY_LIMIT + 1):
         try:
-            response = await _call_llm(prompt if attempt == 0 else _stricter_prompt(prompt))
-            result = json.loads(response)
+            # generate_json handles markdown fences, invalid escapes, control chars —
+            # the LLM's JSON output isn't reliably clean without it.
+            result = await llm.generate_json(
+                prompt if attempt == 0 else _stricter_prompt(prompt)
+            )
             # Clamp marks
             ma = int(result.get("marks_awarded", 0))
             result["marks_awarded"] = max(0, min(ma, max_marks))
@@ -87,9 +90,6 @@ async def grade(
             result.setdefault("summary", "")
             result.setdefault("improvement", "")
             return result  # type: ignore[return-value]
-        except json.JSONDecodeError as exc:
-            last_error = exc
-            logger.warning("Grading returned invalid JSON on attempt %d", attempt + 1)
         except Exception as exc:
             last_error = exc
             logger.warning("Grading call failed on attempt %d: %s", attempt + 1, exc)
