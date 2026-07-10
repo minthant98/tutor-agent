@@ -96,6 +96,28 @@ async def test_extract_max_marks_fallback_default():
 
 
 @pytest.mark.asyncio
+async def test_pick_question_synthesizes_when_qdrant_empty(
+    db_session, student_with_subject, syllabus_edexcel_seeded
+):
+    """Qdrant returns [] for both filtered and broadened searches → synthesize."""
+    with patch.object(qs, "_retrieve_from_qdrant", new=AsyncMock(return_value=[])), \
+         patch.object(qs, "_generate_question_llm",
+                     new=AsyncMock(return_value="Find dy/dx if y = x^3. [4 marks]")), \
+         patch.object(qs, "_generate_mark_scheme_llm",
+                     new=AsyncMock(return_value=("M1 A1 A1 A1", 4))):
+        result = await qs.pick_question(
+            db_session, student_with_subject.id, "pure_mathematics", "edexcel",
+            topic_override="integration_basics",
+        )
+    assert result["question_text"].startswith("Find dy/dx")
+    assert result["mark_scheme"] == "M1 A1 A1 A1"
+    assert result["max_marks"] == 4
+    assert result["used_generated_mark_scheme"] is True
+    assert result["paper_ref"] == "Alex-generated practice question"
+    assert result["topic"] == "integration_basics"
+
+
+@pytest.mark.asyncio
 async def test_no_mark_scheme_flag_set(db_session, student_with_subject, syllabus_edexcel_seeded):
     """If mark scheme retrieval returns None, generate one via LLM and flag the response."""
     with patch.object(qs, "_retrieve_from_qdrant", new=AsyncMock(return_value=[

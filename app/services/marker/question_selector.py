@@ -11,6 +11,11 @@ Therefore _fetch_mark_scheme cannot reliably pair a mark scheme to a specific
 question — it will return None in production and _generate_mark_scheme_llm is
 what runs. `used_generated_mark_scheme` will always be True in production until
 a richer ingestion pipeline is added. This is MVP-accepted.
+
+When Qdrant returns zero candidates entirely (e.g. missing collection, 404, or
+unindexed board/subject), pick_question falls back to LLM-generated question +
+mark scheme. paper_ref becomes "Alex-generated practice question" so the UI
+never falsely attributes generated content to a real past paper.
 """
 import logging
 import random
@@ -66,9 +71,24 @@ async def pick_question(
         logger.info("All candidates already graded by student; dropping history filter")
         filtered = candidates
 
-    # Pick one at random from filtered
+    # Qdrant returned nothing (collection missing, 404, or genuinely empty for
+    # this board/subject) — synthesize a full question via LLM. MVP fallback,
+    # same principle as _generate_mark_scheme_llm. Follow-up: re-ingest Qdrant.
     if not filtered:
-        raise RuntimeError(f"No question candidates for topic={topic}, board={board}")
+        logger.info("Qdrant returned no candidates; synthesizing question via LLM")
+        question_text = await _generate_question_llm(topic, subject, board)
+        mark_scheme_text, max_marks = await _generate_mark_scheme_llm(question_text)
+        import hashlib
+        q_id = hashlib.md5(question_text[:200].encode()).hexdigest()[:16]
+        return {
+            "question_id": q_id,
+            "question_text": question_text,
+            "mark_scheme": mark_scheme_text,
+            "max_marks": max_marks,
+            "paper_ref": "Alex-generated practice question",
+            "topic": topic,
+            "used_generated_mark_scheme": True,
+        }
     picked = random.choice(filtered)
 
     # Fetch mark scheme
@@ -186,6 +206,21 @@ async def _fetch_mark_scheme(paper_ref: str, question_id: str) -> tuple[str, int
 
 
 # ── mark scheme generation fallback ────────────────────────────────────────
+
+async def _generate_question_llm(topic: str, subject: str, board: str) -> str:
+    """Synthesize an A-Level practice question when Qdrant has no candidates."""
+    topic_h = topic.replace("_", " ")
+    subject_h = subject.replace("_", " ")
+    prompt = f"""You are an A-Level {subject_h} examiner writing a single practice question.
+
+Topic: {topic_h}
+Board style: {board.title()} A-Level
+
+Write ONE exam-style question of moderate difficulty (3–6 marks). Match the tone
+and structure of a real past paper. Include the mark allocation in [X marks]
+at the end. Return only the question text — no preamble, no solutions."""
+    return await llm.generate(prompt)
+
 
 async def _generate_mark_scheme_llm(question_text: str) -> tuple[str, int]:
     """Generate a mark scheme via LLM when Qdrant pairing is unavailable."""
