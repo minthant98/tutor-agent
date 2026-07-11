@@ -351,6 +351,9 @@ async def get_active_session(
     result = await db.execute(
         select(TutorSession)
         .where(TutorSession.student_id == student.id, TutorSession.ended_at.is_(None))
+        # TutorSession lacks updated_at; started_at.desc() is a proxy.
+        # If concurrent open sessions ever become possible, add updated_at
+        # and switch this ordering (see model debt in ledger).
         .order_by(TutorSession.started_at.desc())
         .limit(1)
     )

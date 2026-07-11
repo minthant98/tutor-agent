@@ -46,7 +46,6 @@ export function Sidebar({ inSheet }: SidebarProps) {
   return (
     <TooltipProvider delayDuration={400}>
       <aside
-        aria-label="Primary"
         className={cn(
           "flex h-full flex-col border-r border-[var(--border-subtle)] bg-[var(--surface-0)]",
           "transition-[width] duration-base ease-standard shrink-0",
