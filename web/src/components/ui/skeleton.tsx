@@ -4,7 +4,7 @@ export function Skeleton({ className, ...props }: React.HTMLAttributes<HTMLDivEl
   return (
     <div
       className={cn(
-        "animate-pulse rounded-[8px] bg-[var(--surface-1)]",
+        "animate-pulse rounded-input bg-[var(--surface-1)]",
         className
       )}
       {...props}

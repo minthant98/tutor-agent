@@ -43,7 +43,7 @@ export const ToggleGroupItem = React.forwardRef<
     <ToggleGroupPrimitive.Item
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center rounded-[8px] font-medium text-[14px] transition-all duration-[120ms] ease-[cubic-bezier(.22,.61,.36,1)] disabled:pointer-events-none disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-input font-medium text-[14px] transition-all duration-fast ease-standard disabled:pointer-events-none disabled:opacity-50",
         resolvedSize === "sm" && "h-8 px-2.5",
         resolvedSize === "md" && "h-10 px-3",
         resolvedSize === "lg" && "h-12 px-4",

@@ -21,7 +21,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
         ref={ref}
         data-surface={surface}
         className={cn(
-          "rounded-[10px] border border-[var(--border-subtle)] p-4",
+          "rounded-card border border-[var(--border-subtle)] p-4",
           surfaceClasses[surface],
           className
         )}

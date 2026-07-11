@@ -55,7 +55,7 @@ export const SheetContent = React.forwardRef<
       ref={ref}
       data-surface={surface}
       className={cn(
-        "fixed z-50 flex flex-col gap-4 p-6 shadow-lg border-[var(--border-subtle)] transition duration-[320ms] ease-[cubic-bezier(.22,.61,.36,1)] data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "fixed z-50 flex flex-col gap-4 p-6 shadow-lg border-[var(--border-subtle)] transition duration-slow ease-standard data-[state=open]:animate-in data-[state=closed]:animate-out",
         surfaceClasses[surface],
         sideClasses[side],
         className

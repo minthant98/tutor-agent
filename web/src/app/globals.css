@@ -137,6 +137,9 @@
   --duration-fast: 120ms;
   --duration-base: 220ms;
   --duration-slow: 320ms;
+  --transition-duration-fast: 120ms;
+  --transition-duration-base: 220ms;
+  --transition-duration-slow: 320ms;
 
   /* Legacy colors */
   --color-navy: var(--navy);
