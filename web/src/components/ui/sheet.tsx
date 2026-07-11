@@ -38,24 +38,32 @@ const sideClasses = {
   right: "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-[400px]",
 };
 
+const surfaceClasses: Record<"0" | "1" | "2" | "3", string> = {
+  "0": "bg-[var(--surface-0)]",
+  "1": "bg-[var(--surface-1)]",
+  "2": "bg-[var(--surface-2)]",
+  "3": "bg-[var(--surface-3)]",
+};
+
 export const SheetContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ className, children, side = "right", "data-surface": surface = "2", ...props }, ref) => (
+>(({ className, children, side = "right", "data-surface": surface = "3", ...props }, ref) => (
   <SheetPortal>
     <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
       data-surface={surface}
       className={cn(
-        "fixed z-50 flex flex-col gap-4 bg-[var(--surface-2)] p-6 shadow-lg border-[var(--border-subtle)] transition duration-[320ms] ease-[cubic-bezier(.22,.61,.36,1)] data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "fixed z-50 flex flex-col gap-4 p-6 shadow-lg border-[var(--border-subtle)] transition duration-[320ms] ease-[cubic-bezier(.22,.61,.36,1)] data-[state=open]:animate-in data-[state=closed]:animate-out",
+        surfaceClasses[surface],
         sideClasses[side],
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[4px] opacity-70 transition-opacity hover:opacity-100 focus-visible:outline-none disabled:pointer-events-none">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[4px] opacity-70 transition-opacity hover:opacity-100 disabled:pointer-events-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
