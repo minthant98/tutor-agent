@@ -362,6 +362,24 @@ async def get_active_session(
     tutor_messages = [m for m in messages if m.get("role") == "tutor"]
     last_message = tutor_messages[-1]["content"][:120] if tutor_messages else None
 
+    segment_plan = session.segment_plan or []
+    current_idx = session.current_segment_idx or 0
+
+    # Build sidebar progress (current_question is 1-based for display)
+    session_type = session.session_type
+    if session_type in ("quick_practice", "weak_areas", "drill_in", "marker"):
+        progress = {
+            "current_question": current_idx + 1,
+            "total_questions": len(segment_plan),
+        }
+    else:
+        # teach / reinforce / practice / diagnostic — estimate via segment time
+        remaining_segments = segment_plan[current_idx:] if segment_plan else []
+        minutes_remaining = sum(
+            seg.get("target_minutes", 5) for seg in remaining_segments
+        )
+        progress = {"minutes_remaining": minutes_remaining}
+
     return ActiveSessionResponse(
         session_id=str(session.id),
         subject=session.subject,
@@ -369,8 +387,10 @@ async def get_active_session(
         started_at=session.started_at,
         message_count=len([m for m in messages if m.get("role") == "student"]),
         last_message=last_message,
-        segment_plan=session.segment_plan or [],
-        current_segment_idx=session.current_segment_idx or 0,
+        segment_plan=segment_plan,
+        current_segment_idx=current_idx,
+        session_type=session_type,
+        progress=progress,
     )
 
 

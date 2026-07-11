@@ -72,6 +72,9 @@ class ActiveSessionResponse(BaseModel):
     last_message: str | None
     segment_plan: list[dict] = []
     current_segment_idx: int = 0
+    # Sidebar fields (added in v3 UI pass)
+    session_type: str | None = None
+    progress: dict | None = None
 
 
 class StudyPlanWeek(BaseModel):
