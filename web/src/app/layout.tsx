@@ -5,6 +5,7 @@ import 'katex/dist/katex.min.css'
 import './globals.css'
 import PostHogInit from './posthog-init'
 import { ThemeProvider } from '@/lib/theme-provider'
+import { Toaster } from '@/components/ui/toast'
 
 export const metadata: Metadata = {
   title: 'Stride — A-Level AI Tutor',
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PostHogInit />
         <ThemeProvider>
           {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
