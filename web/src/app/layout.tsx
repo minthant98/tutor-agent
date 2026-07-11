@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`h-full ${GeistSans.className} ${GeistMono.className}`}>
+    <html lang="en" suppressHydrationWarning className={`h-full ${GeistSans.className} ${GeistMono.className}`}>
       <body className="h-full antialiased">
         <PostHogInit />
         <ThemeProvider>

@@ -21,6 +21,9 @@
   --readiness-3: #E8C070;
   --readiness-4: #F5A356;
 
+  /* Educational */
+  --teacher-feedback: #8FB88C;
+
   /* Semantic */
   --semantic-success-text: #8FB88C;
   --semantic-success-bg: rgba(143, 184, 140, 0.08);
@@ -107,6 +110,7 @@
   --color-hint: #A889F0;
   --color-mark-scheme: #E8C070;
   --color-alex-feedback: #6268F2;
+  --color-teacher-feedback: #8FB88C;
 
   /* Typography */
   --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
@@ -152,6 +156,7 @@ html {
 
 body {
   background: var(--surface-0);
+  color: var(--text-primary);
   color-scheme: dark light;
 }
 
