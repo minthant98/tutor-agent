@@ -54,11 +54,6 @@ async def search(
     # 2. Topic matches — search across all the student's active subjects
     # ------------------------------------------------------------------
     if active_subjects_rows:
-        subject_conditions = [
-            (LearnerSubject.subject == row.subject)
-            for row in active_subjects_rows
-        ]
-
         for row in active_subjects_rows:
             topic_rows = (
                 await db.execute(

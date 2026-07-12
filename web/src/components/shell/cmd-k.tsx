@@ -71,12 +71,12 @@ export function CmdK() {
     setOpen(false);
   }
 
-  const hasResults =
-    !isLoading && (recent.length > 0 || navigate.length > 0 || topics.length > 0);
-  const showEmpty = query.length > 0 && !isLoading && !hasResults;
+  const hasQuery = query.trim().length > 0;
+  const noSearchResults = recent.length === 0 && topics.length === 0;
+  const showEmpty = hasQuery && !isLoading && noSearchResults;
 
   return (
-    <CommandDialog open={open} onOpenChange={setOpen}>
+    <CommandDialog open={open} onOpenChange={setOpen} className="max-w-[640px] sm:max-w-[640px]">
       <CommandInput
         placeholder="Search or run a command…"
         value={query}
@@ -89,7 +89,7 @@ export function CmdK() {
             <CommandItem key={a.id} onSelect={() => handleSelect(a)}>
               <span>{a.label}</span>
               {a.shortcut && (
-                <CommandShortcut>{a.shortcut}</CommandShortcut>
+                <CommandShortcut className="font-mono">{a.shortcut}</CommandShortcut>
               )}
             </CommandItem>
           ))}
@@ -102,7 +102,7 @@ export function CmdK() {
               <CommandItem key={r.id} onSelect={() => handleSelect(r)}>
                 <span className="truncate">{r.label}</span>
                 {r.subtitle && (
-                  <CommandShortcut>{r.subtitle}</CommandShortcut>
+                  <CommandShortcut className="font-mono">{r.subtitle}</CommandShortcut>
                 )}
               </CommandItem>
             ))}
@@ -127,7 +127,7 @@ export function CmdK() {
               <CommandItem key={t.id} onSelect={() => handleSelect(t)}>
                 <span>{t.label}</span>
                 {t.subtitle && (
-                  <CommandShortcut>{t.subtitle}</CommandShortcut>
+                  <CommandShortcut className="font-mono">{t.subtitle}</CommandShortcut>
                 )}
               </CommandItem>
             ))}
