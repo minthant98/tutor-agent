@@ -1,5 +1,6 @@
 "use client";
 import { Search, UserCircle2 } from "lucide-react";
+import Link from "next/link";
 import { Breadcrumb } from "./breadcrumb";
 import { SubjectSwitcher } from "./subject-switcher";
 import { AskAlexButton } from "./ask-alex-button";
@@ -62,13 +63,14 @@ export function TopBar() {
         </span>
 
         {/* Avatar — mobile only (hidden on md+); desktop has avatar in sidebar */}
-        <button
+        <Link
+          href="/account"
           data-testid="topbar-avatar"
           className="md:hidden flex items-center justify-center rounded-full w-8 h-8 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-fast ml-1"
           aria-label="Account"
         >
           <UserCircle2 className="h-6 w-6" aria-hidden />
-        </button>
+        </Link>
       </div>
     </header>
   );

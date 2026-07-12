@@ -49,7 +49,7 @@ export function SubjectSwitcher() {
       >
         <ul role="listbox" aria-label="Subjects">
           {subjects.map((s) => (
-            <li key={s.id} role="option" aria-selected={s.id === subject}>
+            <li key={s.id}>
               <button
                 className={cn(
                   "flex w-full items-center justify-between rounded-input px-3 py-2",
@@ -57,6 +57,7 @@ export function SubjectSwitcher() {
                   "hover:bg-[var(--surface-1)] transition-colors duration-fast",
                   s.id === subject && "font-medium"
                 )}
+                aria-pressed={s.id === subject}
                 onClick={() => handleSelect(s.id)}
               >
                 {s.label}
