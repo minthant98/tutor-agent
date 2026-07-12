@@ -29,6 +29,7 @@ from app.api.v1.endpoints.notifications import router as notif_router
 from app.api.v1.endpoints.readyz import router as readyz_router
 from app.api.v1.endpoints.practice import router as practice_router
 from app.api.v1.endpoints.marker import router as marker_router
+from app.api.v1.endpoints.search import router as search_router
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,7 @@ app.include_router(notif_router, prefix=settings.api_v1_prefix)
 app.include_router(readyz_router)  # no api prefix — reachable at /readyz
 app.include_router(practice_router, prefix=settings.api_v1_prefix)
 app.include_router(marker_router, prefix=settings.api_v1_prefix)
+app.include_router(search_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")
