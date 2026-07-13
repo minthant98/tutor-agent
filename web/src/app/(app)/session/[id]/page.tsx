@@ -11,6 +11,7 @@ import { useFeatureFlag } from '@/lib/feature-flags'
 import { SessionShell } from '@/components/session/session-shell'
 import { SegmentBand } from '@/components/session/segment-band'
 import type { SegmentDisplay } from '@/components/session/segment-band'
+import { SessionContent, type Segment } from '@/components/session/session-content'
 
 type ChatItem =
   | { kind: 'msg'; id: string; role: 'student' | 'tutor'; content: string; streaming?: boolean }
@@ -329,12 +330,18 @@ export default function SessionPage() {
           : 'upcoming',
     }))
 
+    // MOCK segment — real content plumbing is a future backend concern (noted in Task 10 report).
+    // The page passes a hardcoded segment so SessionContent renders and the page compiles.
+    const mockSegment: Segment = {
+      intent: 'teach',
+      blocks: [
+        { type: 'prose', text: 'Welcome to your session. Content from the backend will appear here.' },
+      ],
+    }
+
     return (
       <SessionShell segments={segmentDisplays}>
-        {/* SessionContent placeholder — Task 10 fills this in */}
-        <div className="flex-1 p-8 text-[var(--text-secondary)] text-sm">
-          Session content coming in Task 10.
-        </div>
+        <SessionContent segment={mockSegment} />
       </SessionShell>
     )
   }
