@@ -24,6 +24,7 @@ export function TopBar() {
   return (
     <header
       role="banner"
+      data-topbar
       className={[
         // Responsive height
         "h-[48px] md:h-[52px] lg:h-[56px]",

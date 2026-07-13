@@ -178,6 +178,12 @@ body {
   }
 }
 
+/* ── Session focus mode — hide shell chrome when a session is active ── */
+html[data-session-focus="true"] aside[data-sidebar],
+html[data-session-focus="true"] header[data-topbar] {
+  display: none;
+}
+
 /* ── KaTeX sizing ── */
 .katex {
   font-size: 1.05em;
