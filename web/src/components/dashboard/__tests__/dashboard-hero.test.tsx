@@ -12,7 +12,8 @@ const PAYLOAD = {
     "Recent Integration accuracy dropped 12%. Today rebuilds the +C habit.",
   readiness_snapshot: {
     percent: 64,
-    band: "A" as const,
+    band: "A (borderline)",
+    band_color_index: 1,
     target_grade: "A",
     days_to_exam: 42,
   },

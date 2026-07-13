@@ -17,27 +17,56 @@ from app.core.redis_client import get_redis
 from app.db.database import get_db
 from app.db.models import LearnerSubject, Student, TutorSession
 from app.services import readiness_service, today_focus_service
+from app.services.marker.grader_llm import _load_student_topic_context
 from app.services.narration import dashboard_narration
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+# Readiness thresholds required to be "at" each grade band.
+BAND_THRESHOLDS: dict[str, float] = {"A*": 80, "A": 70, "B": 60, "C": 50}
+
+# Ordered list used for fallback iteration (highest first).
+_BAND_ORDER = ["A*", "A", "B", "C"]
+
 
 def _band_for_grade(target_grade: str, readiness_pct: float) -> str:
-    """Map target grade + readiness percentile to a band label.
+    """Return the student's band relative to their target grade.
 
-    The band indicates where the student sits relative to their target:
-    - A*: ≥80 pct
-    - A:  ≥60 pct
-    - B:  ≥40 pct
-    - C:  <40 pct
+    A positive diff (≥5 pp above target threshold) → student is comfortably
+    at target.  Within ±5 pp → borderline.  Below → show the band they're
+    currently sitting at, or "below C".
+    """
+    target_pct = BAND_THRESHOLDS.get(target_grade, 60)
+    diff = readiness_pct - target_pct
+    if diff >= 5:
+        return target_grade  # comfortably at or above target
+    if diff >= -5:
+        return f"{target_grade} (borderline)"
+    # Below target — return the highest band whose threshold they clear
+    for band in _BAND_ORDER:
+        if readiness_pct >= BAND_THRESHOLDS[band]:
+            return band
+    return "below C"
+
+
+def _band_color_index(readiness_pct: float) -> int:
+    """Map raw readiness % to a 0-4 color index for the frontend.
+
+    0 = Cool Blue (≥80), 1 = Indigo (≥65), 2 = Lavender (≥50),
+    3 = Soft Gold (≥35), 4 = Amber (<35).
+
+    The frontend reads this int directly so it never needs to string-match
+    band labels.
     """
     if readiness_pct >= 80:
-        return "A*"
-    if readiness_pct >= 60:
-        return "A"
-    if readiness_pct >= 40:
-        return "B"
-    return "C"
+        return 0
+    if readiness_pct >= 65:
+        return 1
+    if readiness_pct >= 50:
+        return 2
+    if readiness_pct >= 35:
+        return 3
+    return 4
 
 
 async def _active_session_resume_state(
@@ -118,23 +147,24 @@ async def get_dashboard_v3(
         else {"prev_mastery": 0.0, "current_mastery": 0.0, "trend": "flat"}
     )
 
-    # 5. Recent grades: derive from segment plan topics (graceful — no separate grades table)
-    recent_grades: list[dict] = []
-    if plan:
-        # Use the why/intent from the first segment as a proxy for grade context
-        first = plan[0]
-        recent_grades = [
-            {
-                "grade_pct": round(mastery_trend["current_mastery"] * 100, 1),
-                "topic": first.get("topic", subject),
-                "days_ago": 1,
-            }
-        ]
+    # 5. Real recent grades from GradedUpload rows (via grader_llm helper).
+    #    Falls back to empty list if there is no plan or no topic yet.
+    first_topic = plan[0].get("topic") if plan else None
+    if first_topic:
+        student_context = await _load_student_topic_context(
+            db, student.id, subject, first_topic
+        )
+    else:
+        student_context = {
+            "recent_grades": [],
+            "mastery_trend": mastery_trend,
+            "recent_practice_mistakes": [],
+        }
 
     # 6. Build narration context
     narration_ctx = {
-        "recent_grades": recent_grades,
-        "mastery_trend": mastery_trend,
+        "recent_grades": student_context["recent_grades"],
+        "mastery_trend": student_context["mastery_trend"],
         "session_plan": [
             {"intent": s.get("intent"), "topic": s.get("topic"), "why": s.get("why")}
             for s in plan
@@ -168,6 +198,7 @@ async def get_dashboard_v3(
         "readiness_snapshot": {
             "percent": round(readiness_pct),
             "band": _band_for_grade(ls_row.target_grade, readiness_pct),
+            "band_color_index": _band_color_index(readiness_pct),
             "target_grade": ls_row.target_grade,
             "days_to_exam": days_to_exam,
         },

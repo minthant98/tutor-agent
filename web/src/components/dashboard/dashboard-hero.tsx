@@ -24,7 +24,8 @@ export interface DashboardV3Payload {
   narration: string;
   readiness_snapshot: {
     percent: number;
-    band: "A*" | "A" | "B" | "C";
+    band: string;
+    band_color_index: number;
     target_grade: string;
     days_to_exam: number | null;
   };
@@ -40,8 +41,8 @@ interface DashboardHeroProps {
 export function DashboardHero({ data }: DashboardHeroProps) {
   return (
     <div className="max-w-[960px] mx-auto pt-12 px-4 space-y-12">
-      {/* Alex narration — left border colored by readiness band */}
-      <AlexNarration text={data.narration} band={data.readiness_snapshot.band} />
+      {/* Alex narration — left border colored by band_color_index (0-4) */}
+      <AlexNarration text={data.narration} bandColorIndex={data.readiness_snapshot.band_color_index} />
 
       {/* Readiness snapshot */}
       <ReadinessSnapshot snapshot={data.readiness_snapshot} />

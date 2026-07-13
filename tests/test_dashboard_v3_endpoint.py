@@ -71,10 +71,20 @@ async def test_dashboard_v3_returns_full_payload(v3_authed_client):
     mock_redis.get.return_value = None
     mock_redis.set.return_value = True
 
+    _stub_student_context = {
+        "recent_grades": [],
+        "mastery_trend": {"prev_mastery": 0.0, "current_mastery": 0.0, "trend": "flat"},
+        "recent_practice_mistakes": [],
+    }
+
     with (
         patch("app.services.narration.dashboard_narration.llm.generate",
               new=AsyncMock(return_value="Recent mastery data targets integration basics today.")),
         patch("app.api.v1.endpoints.dashboard_v3.get_redis", return_value=mock_redis),
+        patch(
+            "app.api.v1.endpoints.dashboard_v3._load_student_topic_context",
+            new=AsyncMock(return_value=_stub_student_context),
+        ),
     ):
         r = await v3_authed_client.get("/api/v1/dashboard/v3/pure_mathematics")
 
@@ -89,7 +99,11 @@ async def test_dashboard_v3_returns_full_payload(v3_authed_client):
     snap = body["readiness_snapshot"]
     assert snap["percent"] >= 0
     assert snap["target_grade"] == "A"
-    assert snap["band"] in ("A*", "A", "B", "C")
+    # Band now reflects relationship to target — may include "(borderline)" suffix or "below C"
+    assert isinstance(snap["band"], str) and len(snap["band"]) > 0
+    # band_color_index is a new field: 0-4 int for frontend color
+    assert "band_color_index" in snap
+    assert snap["band_color_index"] in (0, 1, 2, 3, 4)
     assert snap["days_to_exam"] == 42
 
     # Plan: 3 segments from today_focus_service
