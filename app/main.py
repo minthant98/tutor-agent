@@ -32,6 +32,7 @@ from app.api.v1.endpoints.marker import router as marker_router
 from app.api.v1.endpoints.search import router as search_router
 from app.api.v1.endpoints.dashboard_v3 import router as dashboard_v3_router
 from app.api.v1.endpoints.observations import router as observations_router
+from app.api.v1.endpoints.alex_session import router as alex_router
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +86,7 @@ app.include_router(marker_router, prefix=settings.api_v1_prefix)
 app.include_router(search_router, prefix=settings.api_v1_prefix)
 app.include_router(dashboard_v3_router, prefix=settings.api_v1_prefix)
 app.include_router(observations_router, prefix=settings.api_v1_prefix)
+app.include_router(alex_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")
