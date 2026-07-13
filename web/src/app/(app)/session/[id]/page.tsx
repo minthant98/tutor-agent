@@ -7,6 +7,10 @@ import { renderMath } from '@/lib/math'
 import { track } from '@/lib/posthog'
 import { ExitConfirmation } from '@/components/session/exit-confirmation'
 import { SegmentProgress } from '@/components/session/segment-progress'
+import { useFeatureFlag } from '@/lib/feature-flags'
+import { SessionShell } from '@/components/session/session-shell'
+import { SegmentBand } from '@/components/session/segment-band'
+import type { SegmentDisplay } from '@/components/session/segment-band'
 
 type ChatItem =
   | { kind: 'msg'; id: string; role: 'student' | 'tutor'; content: string; streaming?: boolean }
@@ -204,6 +208,7 @@ export default function SessionPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const opening = searchParams.get('opening')
+  const sessionV3 = useFeatureFlag('session_v3', false)
 
   const [items, setItems] = useState<ChatItem[]>([])
   const [input, setInput] = useState('')
@@ -308,6 +313,32 @@ export default function SessionPage() {
   const phaseColor = PHASE_COLOR[phase] ?? '#94A3B8'
   const studentMsgCount = items.filter(it => it.kind === 'msg' && it.role === 'student').length
   const hasAnsweredAtLeastOne = items.length > 1
+
+  // ── v3 focus-mode shell ──────────────────────────────────────────────────
+  if (sessionV3) {
+    // Convert legacy segment plan to SegmentDisplay format
+    const segmentDisplays: SegmentDisplay[] = segmentPlan.map((s, i) => ({
+      intent: s.intent,
+      // Legacy plan has no topic — fall back to intent label
+      topic: s.intent,
+      state:
+        i < currentSegmentIdx
+          ? 'completed'
+          : i === currentSegmentIdx
+          ? 'current'
+          : 'upcoming',
+    }))
+
+    return (
+      <SessionShell segments={segmentDisplays}>
+        {/* SessionContent placeholder — Task 10 fills this in */}
+        <div className="flex-1 p-8 text-[var(--text-secondary)] text-sm">
+          Session content coming in Task 10.
+        </div>
+      </SessionShell>
+    )
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-screen flex-col" style={{ background: 'var(--bg)' }}>
