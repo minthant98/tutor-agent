@@ -1,6 +1,7 @@
 "use client";
 
 import { AlexNarration } from "./alex-narration";
+import { AlexObservations } from "./alex-observations";
 import { ReadinessSnapshot } from "./readiness-snapshot";
 import { SegmentCards } from "./segment-cards";
 import { SessionCta } from "./session-cta";
@@ -36,9 +37,11 @@ export interface DashboardV3Payload {
 
 interface DashboardHeroProps {
   data: DashboardV3Payload;
+  /** Subject slug — required to fetch Alex observations. Defaults to empty string (observations hidden). */
+  subject?: string;
 }
 
-export function DashboardHero({ data }: DashboardHeroProps) {
+export function DashboardHero({ data, subject = "" }: DashboardHeroProps) {
   return (
     <div className="max-w-[960px] mx-auto pt-12 px-4 space-y-12">
       {/* Alex narration — left border colored by band_color_index (0-4) */}
@@ -69,6 +72,9 @@ export function DashboardHero({ data }: DashboardHeroProps) {
           totalSegments={data.session_plan.length}
         />
       </div>
+
+      {/* Alex weekly observations — renders nothing when list is empty */}
+      <AlexObservations subject={subject} />
     </div>
   );
 }

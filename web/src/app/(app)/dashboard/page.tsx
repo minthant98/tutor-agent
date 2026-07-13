@@ -36,7 +36,7 @@ function DashboardSkeleton() {
 function DashboardV3View({ subject }: { subject: string }) {
   const { data, isLoading } = useDashboardV3(subject);
   if (isLoading || !data) return <DashboardSkeleton />;
-  return <DashboardHero data={data} />;
+  return <DashboardHero data={data} subject={subject} />;
 }
 
 export default function DashboardPage() {
