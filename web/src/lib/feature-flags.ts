@@ -4,6 +4,7 @@ import posthog from "posthog-js";
 
 export type StrideFlag =
   | "dashboard_v2"
+  | "dashboard_v3"
   | "onboarding_v2"
   | "session_engine_v2"
   | "notifications_v2"
@@ -14,6 +15,7 @@ export type StrideFlag =
 
 const KNOWN_FLAGS: ReadonlyArray<StrideFlag> = [
   "dashboard_v2",
+  "dashboard_v3",
   "onboarding_v2",
   "session_engine_v2",
   "notifications_v2",

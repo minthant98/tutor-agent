@@ -15,16 +15,45 @@ import { PracticeCard } from "@/components/dashboard/practice-card";
 import { MarkMyWorkCard } from "@/components/marker/mark-my-work-card";
 import { FeatureFlag } from "@/components/shell/feature-flag";
 import type { DashboardPayload } from "@/lib/types";
+import { DashboardHero } from "@/components/dashboard/dashboard-hero";
+import { useDashboardV3 } from "@/hooks/use-dashboard-v3";
+
+function DashboardSkeleton() {
+  return (
+    <div className="max-w-[960px] mx-auto pt-12 px-4 animate-pulse space-y-12">
+      <div className="h-6 w-2/3 rounded bg-[var(--surface-2)]" />
+      <div className="h-16 w-24 rounded bg-[var(--surface-2)]" />
+      <div className="flex gap-4">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="flex-1 h-48 rounded-card bg-[var(--surface-2)]" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Isolated component so useDashboardV3 hook is always called unconditionally
+function DashboardV3View({ subject }: { subject: string }) {
+  const { data, isLoading } = useDashboardV3(subject);
+  if (isLoading || !data) return <DashboardSkeleton />;
+  return <DashboardHero data={data} />;
+}
 
 export default function DashboardPage() {
+  const v3 = useFeatureFlag("dashboard_v3", false);
   const v2 = useFeatureFlag("dashboard_v2", true);
   const student = useStudent();
   const [subject, setSubject] = useState("pure_mathematics");
   const [data, setData] = useState<DashboardPayload | null>(null);
 
   useEffect(() => {
-    dashboardApi.get(subject).then(setData).catch(() => {});
-  }, [subject]);
+    if (!v3) {
+      dashboardApi.get(subject).then(setData).catch(() => {});
+    }
+  }, [subject, v3]);
+
+  // v3 flag takes priority — renders single hero
+  if (v3) return <DashboardV3View subject={subject} />;
 
   if (!v2) return <LegacyDashboard />;
 
