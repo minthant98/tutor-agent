@@ -4,9 +4,9 @@ from datetime import datetime, date
 import sqlalchemy as sa
 from sqlalchemy import (
     JSON, Boolean, Date, DateTime, Float,
-    ForeignKey, Integer, String, UniqueConstraint, func, text,
+    ForeignKey, Index, Integer, String, UniqueConstraint, func, text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -259,4 +259,28 @@ class GradedUpload(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class Observation(Base):
+    """Alex observations with traceability — up to 3 per student/subject/week."""
+
+    __tablename__ = "observations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subject: Mapped[str] = mapped_column(String(64), nullable=False)
+    text: Mapped[str] = mapped_column(String(500), nullable=False)
+    trace_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    week_of: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_observations_student_subject_week", "student_id", "subject", "week_of"),
     )
