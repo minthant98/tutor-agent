@@ -12,6 +12,10 @@ import { SessionShell } from '@/components/session/session-shell'
 import { SegmentBand } from '@/components/session/segment-band'
 import type { SegmentDisplay } from '@/components/session/segment-band'
 import { SessionContent, type Segment } from '@/components/session/session-content'
+import { ActionBar } from '@/components/session/action-bar'
+import { SegmentTransition } from '@/components/session/segment-transition'
+import { SessionComplete } from '@/components/session/session-complete'
+import { useAutosave } from '@/hooks/use-autosave'
 
 type ChatItem =
   | { kind: 'msg'; id: string; role: 'student' | 'tutor'; content: string; streaming?: boolean }
@@ -316,6 +320,19 @@ export default function SessionPage() {
   const hasAnsweredAtLeastOne = items.length > 1
 
   // ── v3 focus-mode shell ──────────────────────────────────────────────────
+  // Minimal transition + completion state for MVP. Real business logic
+  // (advancing segments on backend, tracking completion via API, computing
+  // readiness delta) is a TODO — left for the backend plumbing milestone.
+  const [transitioningTo, setTransitioningTo] = useState<{
+    prev: { intent: string };
+    next: { intent: string; topic: string; minutes: number };
+  } | null>(null)
+  const [isComplete, setIsComplete] = useState(false)
+
+  // Autosave: persist cursor position + input draft whenever they change.
+  // Fires debounced PATCH /api/v1/sessions/{id}/state — failures are silent.
+  useAutosave({ sessionId: id, state: { cursor: currentSegmentIdx, input_draft: input } })
+
   if (sessionV3) {
     // Convert legacy segment plan to SegmentDisplay format
     const segmentDisplays: SegmentDisplay[] = segmentPlan.map((s, i) => ({
@@ -340,8 +357,55 @@ export default function SessionPage() {
     }
 
     return (
-      <SessionShell segments={segmentDisplays}>
+      <SessionShell segments={segmentDisplays} sessionId={id}>
         <SessionContent segment={mockSegment} />
+
+        {/* ActionBar: primary advances segment; right skips (MVP stubs). */}
+        <ActionBar
+          primary={{
+            label: 'Continue',
+            shortcut: '↵',
+            // TODO: real advance-segment logic; for now shows transition overlay demo
+            onClick: () => {
+              if (segmentPlan.length > 1 && currentSegmentIdx < segmentPlan.length - 1) {
+                const curr = segmentPlan[currentSegmentIdx]
+                const nxt = segmentPlan[currentSegmentIdx + 1]
+                setTransitioningTo({
+                  prev: { intent: curr.intent },
+                  next: { intent: nxt.intent, topic: nxt.intent, minutes: 6 },
+                })
+              } else {
+                // No next segment → session complete
+                setIsComplete(true)
+              }
+            },
+          }}
+          right={{ label: 'Skip', onClick: () => {} }}
+        />
+
+        {/* Segment transition overlay — shown between segments */}
+        {transitioningTo && (
+          <SegmentTransition
+            prev={transitioningTo.prev}
+            next={transitioningTo.next}
+            onContinue={() => {
+              // TODO: call API to advance segment index; update currentSegmentIdx
+              setCurrentSegmentIdx(i => i + 1)
+              setTransitioningTo(null)
+            }}
+          />
+        )}
+
+        {/* Session complete screen — shown when all segments done */}
+        {isComplete && (
+          <SessionComplete
+            // TODO: compute real elapsed minutes from session start time
+            totalMinutes={22}
+            segmentCount={segmentPlan.length || 3}
+            // TODO: fetch readiness from backend after session finalization
+            readinessAfter={71}
+          />
+        )}
       </SessionShell>
     )
   }
