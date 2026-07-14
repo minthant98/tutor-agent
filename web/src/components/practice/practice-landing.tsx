@@ -94,6 +94,7 @@ export function PracticeLanding({ data, topics }: PracticeLandingProps) {
           mode="Drill-In"
           header='"I keep getting this wrong."'
           description="Deep-focus on one topic — you choose."
+          meta={drillTopic ? "~12 min · targeted" : "Choose a topic"}
           outcome="Best when one concept won't stick — mastery over breadth."
           impact="Expected mastery · +1 band on this topic"
           metaSlot={

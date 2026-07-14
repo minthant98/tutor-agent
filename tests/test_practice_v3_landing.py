@@ -94,19 +94,19 @@ async def test_practice_v3_landing_returns_narration_and_weak_topics(
 async def test_practice_v3_landing_fresh_student_returns_empty_weak_topics(
     authed_client, student_with_subject, syllabus_edexcel_seeded
 ):
-    """Fresh student (no mastery data) returns empty weak_topics list."""
-    mock_narration = "No practice data yet. Start a session to build your profile."
-    with patch(
-        "app.api.v1.endpoints.practice.practice_narration.generate",
-        new=AsyncMock(return_value=mock_narration),
-    ):
-        r = await authed_client.get(
-            "/api/v1/practice/v3/landing?subject=pure_mathematics"
-        )
+    """Fresh student (no mastery data) returns empty weak_topics list and static narration.
+
+    The LLM is NOT called when there are no weak topics — the endpoint short-circuits
+    to a static analytical fallback so practice_narration.generate is never invoked.
+    """
+    r = await authed_client.get(
+        "/api/v1/practice/v3/landing?subject=pure_mathematics"
+    )
 
     assert r.status_code == 200
     body = r.json()
     assert body["weak_topics"] == []
+    assert body["narration"] == "No practice data yet. Complete a session to build your profile."
 
 
 @pytest.mark.asyncio

@@ -150,18 +150,21 @@ async def practice_v3_landing(
         for topic_id, _ in weak_rows
     ]
 
-    # Generate narration
-    narration_context = {
-        "subject": subject,
-        "weak_topics": [
-            {
-                "topic_id": topic_id,
-                "topic_name": name_map.get(topic_id, topic_id.replace("_", " ").title()),
-                "mastery_pct": int((mastery or 0) * 100),
-            }
-            for topic_id, mastery in weak_rows
-        ],
-    }
-    narration = await practice_narration.generate(narration_context)
+    # Generate narration — skip LLM call when there is no practice data yet
+    if not weak_topics:
+        narration = "No practice data yet. Complete a session to build your profile."
+    else:
+        narration_context = {
+            "subject": subject,
+            "weak_topics": [
+                {
+                    "topic_id": topic_id,
+                    "topic_name": name_map.get(topic_id, topic_id.replace("_", " ").title()),
+                    "mastery_pct": int((mastery or 0) * 100),
+                }
+                for topic_id, mastery in weak_rows
+            ],
+        }
+        narration = await practice_narration.generate(narration_context)
 
     return PracticeLandingResponse(narration=narration, weak_topics=weak_topics)

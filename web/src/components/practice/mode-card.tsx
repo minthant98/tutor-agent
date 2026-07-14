@@ -49,12 +49,13 @@ export function ModeCard({
       {/* Extra content (e.g. topic chips for Weak Areas) */}
       {extraContent && <div>{extraContent}</div>}
 
-      {/* Meta line or custom meta slot */}
-      {metaSlot ? (
-        metaSlot
-      ) : (
+      {/* Meta label (always shown when provided) */}
+      {meta && (
         <div className="text-[12px] font-mono text-white/60">{meta}</div>
       )}
+
+      {/* Custom meta slot (e.g. Combobox for Drill-In) */}
+      {metaSlot && metaSlot}
 
       {/* Push footer down */}
       <div className="flex-1" />

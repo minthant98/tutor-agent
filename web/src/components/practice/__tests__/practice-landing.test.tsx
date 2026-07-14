@@ -94,4 +94,35 @@ describe("PracticeLanding", () => {
     const card = screen.getByTestId("mode-card-drill-in");
     expect(within(card).getByRole("button", { name: "Start" })).toBeDisabled();
   });
+
+  it("Drill-In shows 'Choose a topic' meta label when no topic selected", () => {
+    render(
+      <PracticeLanding
+        data={DATA}
+        topics={[{ id: "integration_basics", label: "Integration Basics" }]}
+      />
+    );
+    const card = screen.getByTestId("mode-card-drill-in");
+    expect(within(card).getByText("Choose a topic")).toBeInTheDocument();
+  });
+
+  it("Drill-In shows '~12 min · targeted' meta label after topic chosen", async () => {
+    const user = userEvent.setup();
+    render(
+      <PracticeLanding
+        data={DATA}
+        topics={[{ id: "integration_basics", label: "Integration Basics" }]}
+      />
+    );
+    const card = screen.getByTestId("mode-card-drill-in");
+
+    // Open combobox and select a topic
+    await user.click(within(card).getByRole("combobox"));
+    const option = await screen.findByRole("option", {
+      name: /Integration Basics/,
+    });
+    await user.click(option);
+
+    expect(within(card).getByText("~12 min · targeted")).toBeInTheDocument();
+  });
 });
