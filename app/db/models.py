@@ -79,6 +79,8 @@ class TutorSession(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    state: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
+
     student: Mapped["Student"] = relationship(back_populates="sessions")
 
 

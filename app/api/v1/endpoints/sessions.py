@@ -1,8 +1,12 @@
 import json
 import logging
+from datetime import datetime, timezone
+from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -25,6 +29,11 @@ from app.agents.tutor_agent import generate_opening_message
 from app.schemas.planner_reason import PlannerReasonModel
 from app.services.session_service import stream_response, _rebuild_resume_state
 from app.workflows.state import SessionState, initial_state
+
+
+class SessionStatePatch(BaseModel):
+    cursor: Optional[dict] = None  # {segment_index: int, block_index: int}
+    input_draft: Optional[str] = None
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -476,3 +485,59 @@ async def get_progress(
         strong_topics=[TopicMastery.model_validate(r) for r in strong],
         total_sessions=total_sessions,
     )
+
+
+# ── GET /sessions/{session_id} ────────────────────────────────────────────────
+
+@router.get("/{session_id}")
+async def get_session(
+    session_id: UUID,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return basic session info including persisted state (for hydration / autosave verification)."""
+    result = await db.execute(
+        select(TutorSession).where(TutorSession.id == session_id)
+    )
+    db_session = result.scalar_one_or_none()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    if str(db_session.student_id) != str(student.id):
+        raise HTTPException(status_code=403, detail="Not your session.")
+
+    return {
+        "session_id": str(db_session.id),
+        "subject": db_session.subject,
+        "state": db_session.state or {},
+    }
+
+
+# ── PATCH /sessions/{session_id}/state ───────────────────────────────────────
+
+@router.patch("/{session_id}/state")
+async def patch_session_state(
+    session_id: UUID,
+    patch: SessionStatePatch,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Merge the given fields into session.state (JSONB). Does not wipe prior fields."""
+    result = await db.execute(
+        select(TutorSession).where(TutorSession.id == session_id)
+    )
+    db_session = result.scalar_one_or_none()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    if str(db_session.student_id) != str(student.id):
+        raise HTTPException(status_code=403, detail="Not your session.")
+
+    # Merge — only include fields that were explicitly provided
+    current = dict(db_session.state or {})
+    incoming = patch.model_dump(exclude_unset=True)
+    merged = {**current, **incoming}
+    db_session.state = merged
+
+    # TutorSession has no updated_at column — skip that update
+    await db.flush()
+    await db.commit()
+    return {"ok": True}
