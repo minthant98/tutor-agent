@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_student
 from app.db.database import get_db
-from app.db.models import LearnerSubject, MasteryState, SyllabusTopic, Student
+from app.db.models import LearnerSubject, MasteryState, SyllabusTopic, Student, TutorSession
 from app.schemas.practice import PracticeTopic
 from app.services.narration import practice_narration
 
@@ -168,3 +168,187 @@ async def practice_v3_landing(
         narration = await practice_narration.generate(narration_context)
 
     return PracticeLandingResponse(narration=narration, weak_topics=weak_topics)
+
+
+# ── GET /practice/plan ────────────────────────────────────────────────────────
+
+class PlanSegment(BaseModel):
+    intent: str
+    topic: str
+
+
+class PlanResponse(BaseModel):
+    narration: str
+    segments: list[PlanSegment]
+    minutes: int
+
+
+_MINUTES_BY_MODE = {
+    "quick_practice": 10,
+    "weak_areas": 15,
+    "drill_in": 12,
+}
+
+_SEGMENT_MINUTES = {
+    "quick_practice": 5,
+    "weak_areas": 6,
+    "drill_in": 4,
+}
+
+
+@router.get("/plan", response_model=PlanResponse)
+async def get_practice_plan(
+    mode: str,
+    topic: str | None = None,
+    skill: str | None = None,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> PlanResponse:
+    """Return a planner-generated segment plan for the transparency screen.
+
+    - `mode`: one of quick_practice, weak_areas, drill_in
+    - `topic`: required for drill_in and quick_practice
+    - `skill`: Marker bridge — when present, narration references Exam Marker result
+    """
+    from app.services.planners import PLANNERS
+
+    if mode not in PLANNERS:
+        raise HTTPException(400, f"Unknown mode '{mode}'")
+
+    planner = PLANNERS[mode]
+    if planner.requires_topic and not topic:
+        raise HTTPException(400, f"topic required for mode '{mode}'")
+
+    # Look up subject from the student's most recent active LearnerSubject
+    ls_row = (await db.execute(
+        select(LearnerSubject).where(
+            LearnerSubject.student_id == student.id,
+            LearnerSubject.is_draft == False,  # noqa: E712
+        ).order_by(LearnerSubject.id.asc()).limit(1)
+    )).scalar_one_or_none()
+
+    if not ls_row:
+        raise HTTPException(404, "No subject configured for this student")
+
+    subject = ls_row.subject
+    result = await planner.build(db, student.id, subject, topic)
+    raw_segments = result["plan"]
+
+    # Resolve topic display names from SyllabusTopic
+    topic_ids = list({s["topic"] for s in raw_segments if s.get("topic")})
+    name_rows = []
+    if topic_ids:
+        name_result = await db.execute(
+            select(SyllabusTopic.topic_id, SyllabusTopic.topic_name).where(
+                SyllabusTopic.subject == subject,
+                SyllabusTopic.version == ls_row.syllabus_version,
+                SyllabusTopic.topic_id.in_(topic_ids),
+            )
+        )
+        name_rows = list(name_result.all())
+    name_map = {r[0]: r[1] for r in name_rows}
+
+    segments = [
+        PlanSegment(
+            intent=s["intent"],
+            topic=name_map.get(s["topic"] or "", s.get("topic") or "").replace("_", " ").title()
+            if s.get("topic") not in name_map
+            else name_map[s["topic"]],
+        )
+        for s in raw_segments
+        if s.get("topic")  # skip consolidate/mistakes segments with no topic
+    ]
+
+    # Estimate minutes
+    seg_min = _SEGMENT_MINUTES.get(mode, 5)
+    minutes = seg_min * len(segments)
+
+    # Narration
+    if skill:
+        skill_label = skill.replace("_", " ").title()
+        narration = f"Coming from your Exam Marker result — targeting {skill_label}."
+    else:
+        narration_context = {
+            "mode": mode,
+            "subject": subject,
+            "segments": [{"intent": s.intent, "topic": s.topic} for s in segments],
+        }
+        narration = await practice_narration.generate(narration_context)
+
+    return PlanResponse(narration=narration, segments=segments, minutes=minutes)
+
+
+# ── GET /practice/drill-in/resume ─────────────────────────────────────────────
+
+class DrillResumeProgress(BaseModel):
+    current: int
+    total: int
+
+
+class DrillResumeResponse(BaseModel):
+    session_id: str
+    topic_label: str
+    progress: DrillResumeProgress
+
+
+@router.get("/drill-in/resume", response_model=DrillResumeResponse | None)
+async def get_drill_in_resume(
+    topic: str,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> DrillResumeResponse | None:
+    """Return an active drill_in session for the given topic, or null if none.
+
+    Reuses the active_session logic: find the most recent unended drill_in session
+    whose segment_plan has the given topic.
+    """
+    result = await db.execute(
+        select(TutorSession)
+        .where(
+            TutorSession.student_id == student.id,
+            TutorSession.session_type == "drill_in",
+            TutorSession.ended_at.is_(None),
+        )
+        .order_by(TutorSession.started_at.desc())
+        .limit(10)
+    )
+    sessions = result.scalars().all()
+
+    # Filter to sessions whose segment_plan includes the requested topic
+    for session in sessions:
+        plan = session.segment_plan or []
+        if not any(s.get("topic") == topic for s in plan):
+            continue
+
+        # Compute progress: how many segments completed
+        current_idx = session.current_segment_idx or 0
+        total = len(plan)
+
+        # Resolve topic label
+        ls_row = (await db.execute(
+            select(LearnerSubject).where(
+                LearnerSubject.student_id == student.id,
+                LearnerSubject.is_draft == False,  # noqa: E712
+            ).limit(1)
+        )).scalar_one_or_none()
+
+        topic_label = topic.replace("_", " ").title()
+        if ls_row:
+            name_result = await db.execute(
+                select(SyllabusTopic.topic_name).where(
+                    SyllabusTopic.topic_id == topic,
+                    SyllabusTopic.subject == ls_row.subject,
+                    SyllabusTopic.version == ls_row.syllabus_version,
+                ).limit(1)
+            )
+            row = name_result.scalar_one_or_none()
+            if row:
+                topic_label = row
+
+        return DrillResumeResponse(
+            session_id=str(session.id),
+            topic_label=topic_label,
+            progress=DrillResumeProgress(current=current_idx, total=total),
+        )
+
+    return None
