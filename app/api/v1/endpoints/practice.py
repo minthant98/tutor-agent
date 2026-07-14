@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,8 +7,21 @@ from app.api.v1.endpoints.auth import get_current_student
 from app.db.database import get_db
 from app.db.models import LearnerSubject, MasteryState, SyllabusTopic, Student
 from app.schemas.practice import PracticeTopic
+from app.services.narration import practice_narration
 
 router = APIRouter(prefix="/practice", tags=["practice"])
+
+
+# ── v3 landing schema ────────────────────────────────────────────────────────
+
+class WeakTopicItem(BaseModel):
+    id: str
+    label: str
+
+
+class PracticeLandingResponse(BaseModel):
+    narration: str
+    weak_topics: list[WeakTopicItem]
 
 
 @router.get("/topics", response_model=list[PracticeTopic])
@@ -82,3 +96,72 @@ async def list_practice_topics(
     ]
 
     return (attempted + unattempted)[:20]
+
+
+@router.get("/v3/landing", response_model=PracticeLandingResponse)
+async def practice_v3_landing(
+    subject: str,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> PracticeLandingResponse:
+    """Practice v3 landing data: Alex narration + top 2 weak topics for this subject."""
+
+    # Verify the student has this subject configured
+    ls_row = (await db.execute(
+        select(LearnerSubject).where(
+            LearnerSubject.student_id == student.id,
+            LearnerSubject.subject == subject,
+            LearnerSubject.is_draft == False,  # noqa: E712
+        )
+    )).scalar_one_or_none()
+    if not ls_row:
+        raise HTTPException(404, f"Subject '{subject}' not configured for this student")
+
+    # Get top 2 weak topics (lowest mastery among attempted topics)
+    weak_rows = (await db.execute(
+        select(MasteryState.topic, MasteryState.mastery_score)
+        .where(
+            MasteryState.student_id == student.id,
+            MasteryState.subject == subject,
+            MasteryState.total_attempts > 0,
+        )
+        .order_by(MasteryState.mastery_score.asc())
+        .limit(2)
+    )).all()
+
+    # Resolve topic names from syllabus
+    version = ls_row.syllabus_version
+    topic_ids = [r[0] for r in weak_rows]
+    name_rows = (await db.execute(
+        select(SyllabusTopic.topic_id, SyllabusTopic.topic_name)
+        .where(
+            SyllabusTopic.subject == subject,
+            SyllabusTopic.version == version,
+            SyllabusTopic.topic_id.in_(topic_ids),
+        )
+    )).all() if topic_ids else []
+    name_map = {r[0]: r[1] for r in name_rows}
+
+    weak_topics = [
+        WeakTopicItem(
+            id=topic_id,
+            label=name_map.get(topic_id, topic_id.replace("_", " ").title()),
+        )
+        for topic_id, _ in weak_rows
+    ]
+
+    # Generate narration
+    narration_context = {
+        "subject": subject,
+        "weak_topics": [
+            {
+                "topic_id": topic_id,
+                "topic_name": name_map.get(topic_id, topic_id.replace("_", " ").title()),
+                "mastery_pct": int((mastery or 0) * 100),
+            }
+            for topic_id, mastery in weak_rows
+        ],
+    }
+    narration = await practice_narration.generate(narration_context)
+
+    return PracticeLandingResponse(narration=narration, weak_topics=weak_topics)
