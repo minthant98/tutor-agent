@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Combobox } from "@/components/ui/combobox";
 import { ModeCard } from "./mode-card";
-import type { PracticeLandingData } from "@/lib/api/practice";
+import { DrillResumeCard } from "./drill-resume-card";
+import { practiceApi } from "@/lib/api/practice";
+import type { PracticeLandingData, DrillResumeData } from "@/lib/api/practice";
 
 export interface TopicOption {
   id: string;
@@ -24,8 +26,20 @@ interface PracticeLandingProps {
 export function PracticeLanding({ data, topics }: PracticeLandingProps) {
   const router = useRouter();
   const [drillTopic, setDrillTopic] = useState<string | null>(null);
+  const [drillResume, setDrillResume] = useState<DrillResumeData | null>(null);
 
   const comboboxOptions = topics.map((t) => ({ value: t.id, label: t.label }));
+
+  // Fetch resume data when a drill topic is selected
+  useEffect(() => {
+    if (!drillTopic) {
+      setDrillResume(null);
+      return;
+    }
+    practiceApi.getDrillResume(drillTopic).then((res) => {
+      setDrillResume(res ?? null);
+    }).catch(() => setDrillResume(null));
+  }, [drillTopic]);
 
   return (
     <div className="max-w-[1120px] mx-auto pt-12 px-6 space-y-8">
@@ -106,6 +120,17 @@ export function PracticeLanding({ data, topics }: PracticeLandingProps) {
               searchPlaceholder="Search topics…"
               emptyMessage="No topics found."
             />
+          }
+          extraContent={
+            drillResume ? (
+              <DrillResumeCard
+                data={drillResume}
+                onResume={(sessionId) => router.push(`/session/${sessionId}`)}
+                onStartOver={() =>
+                  router.push(`/practice/plan?mode=drill_in&topic=${drillTopic}`)
+                }
+              />
+            ) : undefined
           }
           action={
             <Button
