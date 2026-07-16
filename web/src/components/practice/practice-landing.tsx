@@ -30,15 +30,23 @@ export function PracticeLanding({ data, topics }: PracticeLandingProps) {
 
   const comboboxOptions = topics.map((t) => ({ value: t.id, label: t.label }));
 
-  // Fetch resume data when a drill topic is selected
+  // Fetch resume data when a drill topic is selected.
+  // Uses a cancelled flag (same pattern as use-dashboard-v3.ts) so that a slow
+  // prior request cannot overwrite state set by a newer topic selection.
   useEffect(() => {
     if (!drillTopic) {
       setDrillResume(null);
       return;
     }
+    let cancelled = false;
     practiceApi.getDrillResume(drillTopic).then((res) => {
-      setDrillResume(res ?? null);
-    }).catch(() => setDrillResume(null));
+      if (!cancelled) setDrillResume(res ?? null);
+    }).catch(() => {
+      if (!cancelled) setDrillResume(null);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [drillTopic]);
 
   return (

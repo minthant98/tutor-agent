@@ -183,12 +183,6 @@ class PlanResponse(BaseModel):
     minutes: int
 
 
-_MINUTES_BY_MODE = {
-    "quick_practice": 10,
-    "weak_areas": 15,
-    "drill_in": 12,
-}
-
 _SEGMENT_MINUTES = {
     "quick_practice": 5,
     "weak_areas": 6,

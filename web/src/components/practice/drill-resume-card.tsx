@@ -6,7 +6,7 @@ import type { DrillResumeData } from "@/lib/api/practice";
 export interface DrillResumeCardProps {
   data: DrillResumeData;
   onResume: (sessionId: string) => void;
-  onStartOver: (topicLabel: string) => void;
+  onStartOver: () => void;
 }
 
 export function DrillResumeCard({ data, onResume, onStartOver }: DrillResumeCardProps) {
@@ -31,7 +31,7 @@ export function DrillResumeCard({ data, onResume, onStartOver }: DrillResumeCard
         <Button variant="primary" size="sm" onClick={() => onResume(session_id)}>
           Resume
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => onStartOver(topic_label)}>
+        <Button variant="ghost" size="sm" onClick={() => onStartOver()}>
           Start over
         </Button>
       </div>
