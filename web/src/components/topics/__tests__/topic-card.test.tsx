@@ -94,4 +94,17 @@ describe("TopicCard", () => {
     );
     expect(screen.getByText("Mastered")).toBeInTheDocument();
   });
+
+  it("does not render PrerequisiteLink when affects_this is false", () => {
+    render(
+      <TopicCard
+        topic={{
+          ...BASE_TOPIC,
+          prerequisite: { id: "chain_rule", label: "Chain rule", affects_this: false },
+        }}
+      />
+    );
+    expect(screen.queryByText(/Chain rule fluency affects this topic/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /chain rule/i })).not.toBeInTheDocument();
+  });
 });

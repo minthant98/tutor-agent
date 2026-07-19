@@ -5,6 +5,9 @@ interface PrerequisiteLinkProps {
 }
 
 export function PrerequisiteLink({ prerequisite }: PrerequisiteLinkProps) {
+  // Guard: only render when this prerequisite actually affects the topic.
+  if (!prerequisite.affects_this) return null;
+
   // If alex_note is set (low prereq mastery variant), render that instead.
   const content = prerequisite.alex_note
     ? prerequisite.alex_note

@@ -74,8 +74,8 @@ export function TopicCard({ topic }: TopicCardProps) {
         {topic.status}
       </Badge>
 
-      {/* Prerequisite link — only when present */}
-      {topic.prerequisite && (
+      {/* Prerequisite link — only when present AND affects_this (PrerequisiteLink guards internally) */}
+      {topic.prerequisite && topic.prerequisite.affects_this && (
         <div>
           <PrerequisiteLink prerequisite={topic.prerequisite} />
         </div>
