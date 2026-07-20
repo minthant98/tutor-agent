@@ -5,6 +5,11 @@ import { useFeatureFlag } from "@/lib/feature-flags";
 import { useCurrentSubject } from "@/hooks/use-current-subject";
 import { TopicsGrid } from "@/components/topics/topics-grid";
 import { TopicsFilters, useTopicsFilters } from "@/components/topics/topics-filters";
+import {
+  RevisionModeToggle,
+  readRevisionMode,
+  writeRevisionMode,
+} from "@/components/topics/revision-mode-toggle";
 import { topicsApi } from "@/lib/api/topics";
 import type { TopicV3 } from "@/components/topics/types";
 import type { StatusFilter, RecencyFilter } from "@/components/topics/topics-filters";
@@ -69,6 +74,21 @@ export function applyFilters(
   return result;
 }
 
+// ── Revision mode filter + sort ───────────────────────────────────────────────
+
+/**
+ * When Revision mode is on:
+ *   - Hide "Not started" topics
+ *   - Show only "Needs review", "Practising", "Mastered"
+ *   - Sort by mastery ascending (lowest mastery = highest revision priority)
+ */
+export function applyRevisionMode(topics: TopicV3[]): TopicV3[] {
+  const NEEDS_REVISION: TopicV3["status"][] = ["Needs review", "Practising", "Mastered"];
+  return [...topics]
+    .filter((t) => NEEDS_REVISION.includes(t.status))
+    .sort((a, b) => a.mastery - b.mastery);
+}
+
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 
 function TopicsSkeleton() {
@@ -92,6 +112,19 @@ export function TopicsV3Inner({ subject }: { subject: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const { filters, setStatus, setRecency, clearFilters } = useTopicsFilters();
+
+  // Revision mode — persisted to sessionStorage
+  const [revisionMode, setRevisionMode] = useState(false);
+
+  // Initialise from sessionStorage after mount (client-only)
+  useEffect(() => {
+    setRevisionMode(readRevisionMode());
+  }, []);
+
+  const handleRevisionModeChange = (v: boolean) => {
+    setRevisionMode(v);
+    writeRevisionMode(v);
+  };
 
   const fetchTopics = useCallback(() => {
     let cancelled = false;
@@ -120,10 +153,13 @@ export function TopicsV3Inner({ subject }: { subject: string }) {
     return fetchTopics();
   }, [fetchTopics]);
 
-  const filtered = useMemo(
-    () => applyFilters(topics ?? [], filters.status, filters.recency),
-    [topics, filters.status, filters.recency]
-  );
+  const filtered = useMemo(() => {
+    // Revision mode takes precedence over individual status/recency filters
+    if (revisionMode) {
+      return applyRevisionMode(topics ?? []);
+    }
+    return applyFilters(topics ?? [], filters.status, filters.recency);
+  }, [topics, filters.status, filters.recency, revisionMode]);
 
   if (isLoading || (topics === null && error === null)) return <TopicsSkeleton />;
 
@@ -148,16 +184,23 @@ export function TopicsV3Inner({ subject }: { subject: string }) {
 
   return (
     <div className="max-w-[1120px] mx-auto pt-12 px-6 space-y-6">
-      <h1 className="text-[28px] font-sans text-[var(--text-primary)]">Topics</h1>
+      {/* Header row: title + revision mode toggle */}
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-[28px] font-sans text-[var(--text-primary)]">Topics</h1>
+        <RevisionModeToggle value={revisionMode} onChange={handleRevisionModeChange} />
+      </div>
 
-      <TopicsFilters
-        filters={filters}
-        onStatusChange={setStatus}
-        onRecencyChange={setRecency}
-        onClear={clearFilters}
-      />
+      {/* Filters — hidden when revision mode is on (revision mode replaces filters) */}
+      {!revisionMode && (
+        <TopicsFilters
+          filters={filters}
+          onStatusChange={setStatus}
+          onRecencyChange={setRecency}
+          onClear={clearFilters}
+        />
+      )}
 
-      <TopicsGrid topics={topics} filtered={filtered} />
+      <TopicsGrid topics={topics ?? []} filtered={filtered} />
     </div>
   );
 }
