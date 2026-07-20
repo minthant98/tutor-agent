@@ -1,7 +1,10 @@
 """Exam Marker HTTP endpoints."""
+from datetime import date, datetime, timezone
+from typing import Optional
 from uuid import UUID, uuid4
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from sqlalchemy import select
+from pydantic import BaseModel
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.auth import get_current_student
@@ -220,3 +223,130 @@ async def list_submissions(
         )
         for r in rows
     ]
+
+
+# ── Marker v3 landing ─────────────────────────────────────────────────────────
+
+FREE_TIER_REFRESH_LIMIT = 5
+
+
+class V3QuestionOut(BaseModel):
+    id: str
+    text: str
+    max_marks: int
+    paper_ref: str
+
+
+class V3RecentSubmissionOut(BaseModel):
+    id: str
+    created_at: datetime
+    marks: Optional[int]
+    max_marks: int
+    delta_readiness: Optional[int]
+    question_preview: str
+
+
+class MarkerV3LandingOut(BaseModel):
+    narration: str
+    question: V3QuestionOut
+    refresh_count_used: int
+    refresh_limit: Optional[int]
+    tier: str
+    recent_submissions: list[V3RecentSubmissionOut]
+
+
+@router.get("/v3/landing", response_model=MarkerV3LandingOut)
+async def get_v3_landing(
+    subject: str = Query("pure_mathematics"),
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> MarkerV3LandingOut:
+    """Marker v3 landing — narration + suggested question + refresh state + recent submissions."""
+    from app.services.narration import marker_narration
+
+    # Resolve learner subject (use query param subject; fall back to first configured)
+    ls = (await db.execute(
+        select(LearnerSubject).where(
+            LearnerSubject.student_id == student.id,
+            LearnerSubject.subject == subject,
+            LearnerSubject.is_draft == False,  # noqa: E712
+        )
+    )).scalars().first()
+
+    if ls is None:
+        # Fall back to any non-draft subject
+        ls = (await db.execute(
+            select(LearnerSubject).where(
+                LearnerSubject.student_id == student.id,
+                LearnerSubject.is_draft == False,  # noqa: E712
+            ).order_by(LearnerSubject.created_at.asc())
+        )).scalars().first()
+
+    if ls is None:
+        raise HTTPException(404, "No subject configured for this student")
+
+    # Resolve tier (Student.subscription_tier — defaults to free)
+    tier = getattr(student, "subscription_tier", "free") or "free"
+    is_pro = tier == "pro"
+
+    # Count today's graded_uploads (= refresh_count_used)
+    today_start = datetime.now(tz=timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    refresh_count_used = (await db.execute(
+        select(func.count()).select_from(GradedUpload).where(
+            GradedUpload.student_id == student.id,
+            GradedUpload.created_at >= today_start,
+        )
+    )).scalar_one()
+
+    refresh_limit: Optional[int] = None if is_pro else FREE_TIER_REFRESH_LIMIT
+
+    # Pick suggested question (reuse existing pick_question logic)
+    candidate = await pick_question(db, student.id, ls.subject, ls.exam_board)
+
+    # Recent submissions (last 5)
+    recent_rows = (await db.execute(
+        select(GradedUpload).where(
+            GradedUpload.student_id == student.id,
+        ).order_by(GradedUpload.created_at.desc()).limit(5)
+    )).scalars().all()
+
+    recent_submissions: list[V3RecentSubmissionOut] = []
+    for r in recent_rows:
+        delta: Optional[int] = None
+        if r.feedback_json and isinstance(r.feedback_json, dict):
+            delta = r.feedback_json.get("readiness_delta")
+        recent_submissions.append(V3RecentSubmissionOut(
+            id=str(r.id),
+            created_at=r.created_at,
+            marks=r.marks_awarded,
+            max_marks=r.max_marks,
+            delta_readiness=delta,
+            question_preview=r.question_text[:80],
+        ))
+
+    # Build narration context
+    recent_grades = [
+        float(r.grade_pct) for r in recent_rows if r.grade_pct is not None
+    ]
+    avg_grade_pct = round(sum(recent_grades) / len(recent_grades), 1) if recent_grades else None
+
+    narration_context = {
+        "recent_grade_pct": avg_grade_pct,
+        "weak_topic": candidate.get("topic"),
+        "week_submission_count": int(refresh_count_used),
+    }
+    narration = await marker_narration.generate(narration_context)
+
+    return MarkerV3LandingOut(
+        narration=narration,
+        question=V3QuestionOut(
+            id=candidate["question_id"],
+            text=candidate["question_text"],
+            max_marks=candidate["max_marks"],
+            paper_ref=candidate["paper_ref"],
+        ),
+        refresh_count_used=int(refresh_count_used),
+        refresh_limit=refresh_limit,
+        tier=tier,
+        recent_submissions=recent_submissions,
+    )
