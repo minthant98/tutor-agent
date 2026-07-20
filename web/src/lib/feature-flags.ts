@@ -12,6 +12,7 @@ export type StrideFlag =
   | "practice_v2"
   | "practice_v3"
   | "marker_v2"
+  | "marker_v3"
   | "shell_v3"
   | "session_v3"
   | "topics_v3";
@@ -26,6 +27,7 @@ const KNOWN_FLAGS: ReadonlyArray<StrideFlag> = [
   "practice_v2",
   "practice_v3",
   "marker_v2",
+  "marker_v3",
   "shell_v3",
   "session_v3",
   "topics_v3",

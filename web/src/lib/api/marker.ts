@@ -1,5 +1,6 @@
 import { apiFetch } from "@/lib/api";
 import type {
+  MarkerV3LandingData,
   QuestionCandidate,
   SubmissionCreateResponse,
   SubmissionOut,
@@ -32,4 +33,8 @@ export const markerApi = {
     apiFetch<SubmissionOut>(`/marker/submissions/${submissionId}`),
   listSubmissions: (limit = 10, offset = 0) =>
     apiFetch<SubmissionOut[]>(`/marker/submissions?limit=${limit}&offset=${offset}`),
+  getV3Landing: (subject = "pure_mathematics", nocache = false) =>
+    apiFetch<MarkerV3LandingData>(
+      `/marker/v3/landing?subject=${subject}${nocache ? "&nocache=true" : ""}`
+    ),
 };

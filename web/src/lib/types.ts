@@ -324,3 +324,30 @@ export interface SubmissionOut {
   error_message: string | null;
   created_at: string;
 }
+
+// ── Marker v3 ─────────────────────────────────────────────────────────────────
+
+export interface MarkerV3Question {
+  id: string;
+  text: string;
+  max_marks: number;
+  paper_ref: string;
+}
+
+export interface MarkerV3RecentSubmission {
+  id: string;
+  created_at: string;
+  marks: number | null;
+  max_marks: number;
+  delta_readiness: number | null;
+  question_preview: string;
+}
+
+export interface MarkerV3LandingData {
+  narration: string;
+  question: MarkerV3Question;
+  refresh_count_used: number;
+  refresh_limit: number | null;
+  tier: "free" | "pro";
+  recent_submissions: MarkerV3RecentSubmission[];
+}

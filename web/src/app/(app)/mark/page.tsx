@@ -3,18 +3,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { markerApi } from "@/lib/api/marker";
 import { dashboardApi } from "@/lib/api/dashboard";
-import type { QuestionCandidate, SubmissionOut } from "@/lib/types";
+import type { MarkerV3LandingData, QuestionCandidate, SubmissionOut } from "@/lib/types";
 import { QuestionCard } from "@/components/marker/question-card";
 import { AnswerInput } from "@/components/marker/answer-input";
 import { GradingProgress } from "@/components/marker/grading-progress";
 import { ResultsView } from "@/components/marker/results-view";
+import { MarkerLanding } from "@/components/marker/marker-landing";
 import { useFeatureFlag } from "@/lib/feature-flags";
+import { useCurrentSubject } from "@/hooks/use-current-subject";
 
 type View = "loading" | "answering" | "grading" | "results" | "error";
 
 export default function MarkPage() {
   const router = useRouter();
   const markerEnabled = useFeatureFlag("marker_v2", true);
+  // marker_v3 flag wired in Task 29 — use false constant until then
+  const markerV3Enabled = false; // TODO(Task-29): replace with useFeatureFlag("marker_v3", false)
+  const { subject } = useCurrentSubject();
+  const [v3Data, setV3Data] = useState<MarkerV3LandingData | null>(null);
+  const [v3Loading, setV3Loading] = useState(false);
   const [view, setView] = useState<View>("loading");
   const [question, setQuestion] = useState<QuestionCandidate | null>(null);
   const [submission, setSubmission] = useState<SubmissionOut | null>(null);
@@ -43,7 +50,24 @@ export default function MarkPage() {
     }
   }, []);
 
+  // Load v3 landing data when marker_v3 flag is enabled (wired in Task 29)
+  const loadV3Landing = useCallback(async (nocache = false) => {
+    setV3Loading(true);
+    try {
+      const data = await markerApi.getV3Landing(subject, nocache);
+      setV3Data(data);
+    } catch {
+      // Fall through to v2 on error
+    } finally {
+      setV3Loading(false);
+    }
+  }, [subject]);
+
   useEffect(() => {
+    if (markerV3Enabled) {
+      loadV3Landing();
+      return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    }
     loadQuestion();
     dashboardApi.get("pure_mathematics")
       .then((d) =>
@@ -55,7 +79,7 @@ export default function MarkPage() {
       )
       .catch(() => {});
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [loadQuestion]);
+  }, [loadQuestion, loadV3Landing, markerV3Enabled]);
 
   const submit = async (input:
     | { type: "typed"; text: string }
@@ -124,6 +148,22 @@ export default function MarkPage() {
       }
     }, 1000);
   };
+
+  // ── v3 branch (flag wired in Task 29 — currently always false) ──────────────
+  if (markerV3Enabled) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">
+        <h1 className="text-xl font-semibold">Mark my work</h1>
+        {v3Loading && <p className="text-[14px] text-[var(--text-secondary)]">Loading…</p>}
+        {v3Data && (
+          <MarkerLanding
+            data={v3Data}
+            onRefresh={() => loadV3Landing(true)}
+          />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-6">
