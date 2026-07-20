@@ -333,7 +333,7 @@ async def get_v3_landing(
     narration_context = {
         "recent_grade_pct": avg_grade_pct,
         "weak_topic": candidate.get("topic"),
-        "week_submission_count": int(refresh_count_used),
+        "today_submission_count": int(refresh_count_used),
     }
     narration = await marker_narration.generate(narration_context)
 

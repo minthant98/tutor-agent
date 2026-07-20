@@ -34,7 +34,7 @@ async def generate(context: dict) -> str:
         context: dict with keys:
             - recent_grade_pct: float | None — average grade % across recent submissions
             - weak_topic: str | None — the topic targeted by today's question
-            - week_submission_count: int — number of graded uploads this week
+            - today_submission_count: int — number of graded uploads today
 
     Returns:
         Narration string (1-3 sentences, analytical only).

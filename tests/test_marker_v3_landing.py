@@ -34,7 +34,7 @@ async def test_marker_narration_generate_returns_string():
         result = await marker_narration.generate({
             "recent_grade_pct": 62.0,
             "weak_topic": "integration",
-            "week_submission_count": 4,
+            "today_submission_count": 4,
         })
     assert isinstance(result, str)
     assert len(result) > 0
