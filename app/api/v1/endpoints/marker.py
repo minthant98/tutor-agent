@@ -29,6 +29,40 @@ from app.services.marker.storage import (
 
 router = APIRouter(prefix="/marker", tags=["marker"])
 
+# ── Upload URL endpoint ────────────────────────────────────────────────────────
+
+_CONTENT_TYPE_EXT: dict[str, str] = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
+
+
+class UploadUrlRequest(BaseModel):
+    content_type: str   # e.g. "image/jpeg"
+    filename: str       # original filename for logging
+
+
+class UploadUrlResponse(BaseModel):
+    signed_url: str
+    photo_path: str
+
+
+@router.post("/submissions/upload-url", response_model=UploadUrlResponse)
+async def get_upload_url(
+    body: UploadUrlRequest,
+    student: Student = Depends(get_current_student),
+) -> UploadUrlResponse:
+    """Return a short-lived signed PUT URL so the client can upload directly to Supabase Storage."""
+    ext = _CONTENT_TYPE_EXT.get(body.content_type.lower())
+    if ext is None:
+        raise HTTPException(415, f"Unsupported content_type '{body.content_type}'. Allowed: {sorted(_CONTENT_TYPE_EXT)}")
+
+    photo_path = f"uploads/{student.id}/{uuid4()}.{ext}"
+    signed_url = await generate_signed_upload_url(photo_path, body.content_type)
+    return UploadUrlResponse(signed_url=signed_url, photo_path=photo_path)
+
 
 @router.get("/next-question", response_model=QuestionCandidateOut)
 async def get_next_question(
