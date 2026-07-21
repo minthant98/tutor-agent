@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, DragEvent, ChangeEvent } from "react";
+import { ChevronUp, ChevronDown } from "lucide-react";
 import { uploadFile } from "@/hooks/use-signed-upload";
 
 const MAX_FILES = 4;
@@ -29,7 +30,10 @@ export function PhotoUpload({ onSubmit }: PhotoUploadProps) {
       const remaining = MAX_FILES - prev.length;
       if (remaining <= 0) return prev;
       const toAdd = files.slice(0, remaining).map((f) => ({
-        id: `${Date.now()}-${Math.random()}`,
+        id:
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`,
         file: f,
         preview: URL.createObjectURL(f),
         status: "idle" as const,
@@ -159,7 +163,6 @@ export function PhotoUpload({ onSubmit }: PhotoUploadProps) {
           type="file"
           accept="image/*"
           multiple
-          capture
           aria-label="Upload photos"
           className="sr-only"
           onChange={handleInputChange}
@@ -245,18 +248,18 @@ export function PhotoUpload({ onSubmit }: PhotoUploadProps) {
                   aria-label={`Move page ${index + 1} up`}
                   onClick={() => moveUp(index)}
                   disabled={index === 0}
-                  className="w-5 h-5 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 flex items-center justify-center text-10"
+                  className="w-5 h-5 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 flex items-center justify-center"
                 >
-                  ‹
+                  <ChevronUp className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
                   aria-label={`Move page ${index + 1} down`}
                   onClick={() => moveDown(index)}
                   disabled={index === entries.length - 1}
-                  className="w-5 h-5 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 flex items-center justify-center text-10"
+                  className="w-5 h-5 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-30 flex items-center justify-center"
                 >
-                  ›
+                  <ChevronDown className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -266,16 +269,27 @@ export function PhotoUpload({ onSubmit }: PhotoUploadProps) {
 
       {/* Submit */}
       {hasFiles && (
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isUploading || entries.length === 0}
-          className="mt-2 px-5 py-2.5 rounded-md bg-[var(--color-primary)] text-white text-14 font-medium disabled:opacity-50 transition-opacity"
-        >
-          {isUploading
-            ? "Uploading…"
-            : `Submit ${entries.length} page${entries.length !== 1 ? "s" : ""}`}
-        </button>
+        <>
+          {entries.some((e) => e.status === "error") && (
+            <div
+              role="alert"
+              className="text-14 mt-2"
+              style={{ color: "var(--semantic-danger-text)" }}
+            >
+              Some photos couldn&apos;t upload. Please try again.
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isUploading || entries.length === 0}
+            className="mt-2 px-5 py-2.5 rounded-md bg-[var(--color-primary)] text-white text-14 font-medium disabled:opacity-50 transition-opacity"
+          >
+            {isUploading
+              ? "Uploading…"
+              : `Submit ${entries.length} page${entries.length !== 1 ? "s" : ""}`}
+          </button>
+        </>
       )}
     </div>
   );
