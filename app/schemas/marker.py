@@ -1,6 +1,6 @@
 """Pydantic schemas for the Exam Marker endpoints."""
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -35,6 +35,11 @@ class UploadedNotifyOut(BaseModel):
     ok: bool
 
 
+class MemoryRef(BaseModel):
+    text: str
+    evidence_days_ago: int
+
+
 class SubmissionOut(BaseModel):
     id: str
     status: str
@@ -51,3 +56,8 @@ class SubmissionOut(BaseModel):
     photo_url: str | None = None  # fresh signed URL if photo path exists
     error_message: str | None = None
     created_at: datetime
+    # Task 25: top-level readiness fields (1-decimal precision, from feedback_json)
+    readiness_before: Optional[float] = None
+    readiness_after: Optional[float] = None
+    # Task 25: Alex memory reference — most recent same-topic attempt or null
+    memory_ref: Optional[MemoryRef] = None

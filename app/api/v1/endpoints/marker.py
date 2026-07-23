@@ -13,6 +13,7 @@ from app.core.telemetry import capture
 from app.db.database import get_db
 from app.db.models import GradedUpload, LearnerSubject, Student
 from app.schemas.marker import (
+    MemoryRef,
     QuestionCandidateOut,
     SubmissionCreateIn,
     SubmissionCreateOut,
@@ -211,6 +212,42 @@ async def get_submission(
         except Exception:
             photo_url = None
 
+    # Task 25: extract readiness fields from feedback_json (1-decimal precision)
+    readiness_before: Optional[float] = None
+    readiness_after: Optional[float] = None
+    if upload.feedback_json and isinstance(upload.feedback_json, dict):
+        rb = upload.feedback_json.get("readiness_before")
+        ra = upload.feedback_json.get("readiness_after")
+        if rb is not None:
+            readiness_before = round(float(rb), 1)
+        if ra is not None:
+            readiness_after = round(float(ra), 1)
+
+    # Task 25: build memory_ref from most-recent prior same-topic grade
+    memory_ref: Optional[MemoryRef] = None
+    if upload.status == "graded":
+        try:
+            from app.services.marker.orchestrator import _infer_topic_from_upload
+            topic = _infer_topic_from_upload(upload)
+            student_context = await _load_student_topic_context_excluding_current(
+                db, student.id, upload.subject, topic, exclude_id=upload.id
+            )
+            if student_context["recent_grades"]:
+                prev = student_context["recent_grades"][0]  # most recent
+                current_pct = float(upload.grade_pct or 0)
+                prev_pct = prev["grade_pct"]
+                trend_word = "higher" if current_pct > prev_pct else "lower" if current_pct < prev_pct else "similar"
+                topic_label = topic.replace("_", " ").title()
+                memory_ref = MemoryRef(
+                    text=(
+                        f"Your previous {topic_label} attempt scored {prev_pct:.0f}% "
+                        f"— this one is {trend_word}."
+                    ),
+                    evidence_days_ago=prev["days_ago"],
+                )
+        except Exception:
+            pass  # memory_ref stays None — non-fatal
+
     return SubmissionOut(
         id=str(upload.id),
         status=upload.status,
@@ -227,7 +264,59 @@ async def get_submission(
         photo_url=photo_url,
         error_message=upload.error_message,
         created_at=upload.created_at,
+        readiness_before=readiness_before,
+        readiness_after=readiness_after,
+        memory_ref=memory_ref,
     )
+
+
+async def _load_student_topic_context_excluding_current(
+    db: AsyncSession,
+    student_id: UUID,
+    subject: str,
+    topic: str,
+    exclude_id: UUID,
+) -> dict:
+    """Load student topic context but exclude the current submission from recent_grades.
+
+    This prevents the current submission from appearing as its own memory reference.
+    """
+    from app.services.marker import grader_llm
+    from app.db.models import GradedUpload
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    grade_rows = (await db.execute(
+        select(GradedUpload).where(
+            GradedUpload.student_id == student_id,
+            GradedUpload.subject == subject,
+            GradedUpload.status == "graded",
+            GradedUpload.id != exclude_id,
+        ).order_by(GradedUpload.created_at.desc()).limit(3)
+    )).scalars().all()
+
+    recent_grades = []
+    for row in grade_rows:
+        improvement = ""
+        if row.feedback_json and isinstance(row.feedback_json, dict):
+            improvement = row.feedback_json.get("improvement", "")
+        created = row.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        days_ago = (now - created).days
+        recent_grades.append({
+            "grade_pct": float(row.grade_pct or 0),
+            "marks_awarded": row.marks_awarded or 0,
+            "max_marks": row.max_marks,
+            "improvement": improvement,
+            "days_ago": days_ago,
+        })
+
+    return {
+        "recent_grades": recent_grades,
+        "mastery_trend": {},
+        "recent_practice_mistakes": [],
+    }
 
 
 @router.get("/submissions", response_model=list[SubmissionOut])

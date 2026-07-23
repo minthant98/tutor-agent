@@ -307,6 +307,11 @@ export interface FeedbackJson {
   used_generated_mark_scheme?: boolean;
 }
 
+export interface MemoryRef {
+  text: string;
+  evidence_days_ago: number;
+}
+
 export interface SubmissionOut {
   id: string;
   status: "pending" | "extracting" | "grading" | "graded" | "error";
@@ -323,6 +328,11 @@ export interface SubmissionOut {
   photo_url: string | null;
   error_message: string | null;
   created_at: string;
+  // Task 25: top-level readiness fields (1-decimal precision)
+  readiness_before?: number | null;
+  readiness_after?: number | null;
+  // Task 25: Alex memory reference
+  memory_ref?: MemoryRef | null;
 }
 
 // ── Marker v3 ─────────────────────────────────────────────────────────────────
