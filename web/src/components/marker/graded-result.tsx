@@ -2,10 +2,14 @@
 import type { SubmissionOut } from "@/lib/types";
 import { ResultHero } from "./result-hero";
 import { AlexFeedbackCard } from "./alex-feedback-card";
+import { CriteriaBreakdown } from "./criteria-breakdown";
+import { MarkSchemeAccordion } from "./mark-scheme-accordion";
 
 interface GradedResultProps {
   submission: SubmissionOut;
   targetGrade?: string;
+  /** Raw mark scheme text for the accordion (Task 26). Passed by the host page when available. */
+  markScheme?: string;
 }
 
 /**
@@ -14,10 +18,11 @@ interface GradedResultProps {
  * Composition:
  *   ResultHero — marks hero + readiness delta
  *   AlexFeedbackCard — improvement paragraph + optional memory reference
- *   [placeholder] Task 26: criteria breakdown
+ *   CriteriaBreakdown — per-criterion awarded/not-awarded table (Task 26)
+ *   MarkSchemeAccordion — collapsible mark scheme, auto-scrolls to first gap (Task 26)
  *   [placeholder] Task 27: recommended next step
  */
-export function GradedResult({ submission, targetGrade = "A" }: GradedResultProps) {
+export function GradedResult({ submission, targetGrade = "A", markScheme }: GradedResultProps) {
   const fb = submission.feedback_json;
   const marks = submission.marks_awarded ?? 0;
   const maxMarks = submission.max_marks;
@@ -51,8 +56,21 @@ export function GradedResult({ submission, targetGrade = "A" }: GradedResultProp
         />
       )}
 
-      {/* TODO(Task 26): criteria breakdown goes here */}
-      {/* <div data-slot="criteria-breakdown" /> */}
+      {/* Criteria breakdown (Task 26) */}
+      {fb?.criteria && fb.criteria.length > 0 && (
+        <CriteriaBreakdown criteria={fb.criteria} />
+      )}
+
+      {/* Mark scheme accordion (Task 26) */}
+      {fb && markScheme && (
+        <MarkSchemeAccordion
+          scheme={markScheme}
+          firstNotAwardedRef={
+            // First criterion not awarded, if any — drives auto-scroll on open
+            fb.criteria?.find((c) => !c.awarded)?.code ?? null
+          }
+        />
+      )}
 
       {/* TODO(Task 27): recommended next step goes here */}
       {/* <div data-slot="recommended-next-step" /> */}
