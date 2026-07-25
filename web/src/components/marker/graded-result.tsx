@@ -4,6 +4,7 @@ import { ResultHero } from "./result-hero";
 import { AlexFeedbackCard } from "./alex-feedback-card";
 import { CriteriaBreakdown } from "./criteria-breakdown";
 import { MarkSchemeAccordion } from "./mark-scheme-accordion";
+import { RecommendedNextStep } from "./recommended-next-step";
 
 interface GradedResultProps {
   submission: SubmissionOut;
@@ -72,8 +73,34 @@ export function GradedResult({ submission, targetGrade = "A", markScheme }: Grad
         />
       )}
 
-      {/* TODO(Task 27): recommended next step goes here */}
-      {/* <div data-slot="recommended-next-step" /> */}
+      {/* Task 27: Recommended next step — mounted above the actions row when present */}
+      {submission.recommended_practice && (
+        <RecommendedNextStep
+          submissionId={submission.id}
+          recommendation={submission.recommended_practice}
+        />
+      )}
+
+      {/* Actions row */}
+      <div className="flex gap-3 pt-2">
+        {submission.recommended_practice ? (
+          /* When a recommendation exists: only ghost "Try a similar question" */
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 font-sans text-[14px] font-medium text-foreground transition-opacity hover:opacity-70"
+          >
+            Try a similar question
+          </button>
+        ) : (
+          /* No recommendation: "Try a similar question" is the primary CTA */
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 font-sans text-[14px] font-medium text-background transition-opacity hover:opacity-80 active:opacity-70"
+          >
+            Try a similar question
+          </button>
+        )}
+      </div>
     </div>
   );
 }

@@ -312,6 +312,12 @@ export interface MemoryRef {
   evidence_days_ago: number;
 }
 
+export interface RecommendedPractice {
+  topic_id: string;
+  sub_skill: string;
+  blurb: string;
+}
+
 export interface SubmissionOut {
   id: string;
   status: "pending" | "extracting" | "grading" | "graded" | "error";
@@ -333,6 +339,8 @@ export interface SubmissionOut {
   readiness_after?: number | null;
   // Task 25: Alex memory reference
   memory_ref?: MemoryRef | null;
+  // Task 27: recommended next step derived from missed criteria
+  recommended_practice?: RecommendedPractice | null;
 }
 
 // ── Marker v3 ─────────────────────────────────────────────────────────────────
