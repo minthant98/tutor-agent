@@ -40,6 +40,12 @@ class MemoryRef(BaseModel):
     evidence_days_ago: int
 
 
+class RecommendedPractice(BaseModel):
+    topic_id: str
+    sub_skill: str
+    blurb: str
+
+
 class SubmissionOut(BaseModel):
     id: str
     status: str
@@ -61,3 +67,5 @@ class SubmissionOut(BaseModel):
     readiness_after: Optional[float] = None
     # Task 25: Alex memory reference — most recent same-topic attempt or null
     memory_ref: Optional[MemoryRef] = None
+    # Task 27: recommended next step — derived from missed criteria
+    recommended_practice: Optional[RecommendedPractice] = None

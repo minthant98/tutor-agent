@@ -15,6 +15,7 @@ from app.db.models import GradedUpload, LearnerSubject, Student
 from app.schemas.marker import (
     MemoryRef,
     QuestionCandidateOut,
+    RecommendedPractice,
     SubmissionCreateIn,
     SubmissionCreateOut,
     SubmissionOut,
@@ -248,6 +249,17 @@ async def get_submission(
         except Exception:
             pass  # memory_ref stays None — non-fatal
 
+    # Task 27: derive recommended next step from missed criteria (graded only)
+    recommended_practice: Optional[RecommendedPractice] = None
+    if upload.status == "graded":
+        try:
+            from app.services.marker import recommended_practice as rp_module
+            rp_data = await rp_module.compute(db, upload)
+            if rp_data is not None:
+                recommended_practice = RecommendedPractice(**rp_data)
+        except Exception:
+            pass  # non-fatal — recommended_practice stays None
+
     return SubmissionOut(
         id=str(upload.id),
         status=upload.status,
@@ -267,6 +279,7 @@ async def get_submission(
         readiness_before=readiness_before,
         readiness_after=readiness_after,
         memory_ref=memory_ref,
+        recommended_practice=recommended_practice,
     )
 
 
