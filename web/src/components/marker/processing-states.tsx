@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { capture } from "@/lib/analytics";
 
 export type ProcessingStatus = "uploading" | "extracting" | "grading" | "graded" | "error";
 export type ProcessingKind = "extraction" | "grading";
@@ -26,6 +28,16 @@ const ERROR_COPY: Record<ProcessingKind, string> = {
 };
 
 export function ProcessingStates({ status, kind, onRetry }: ProcessingStatesProps) {
+  // Fire marker_ocr_failed once when this component shows an extraction error.
+  // Using a ref ensures it fires at most once even if the component re-renders.
+  const ocrFailedFired = useRef(false);
+  useEffect(() => {
+    if (status === "error" && kind === "extraction" && !ocrFailedFired.current) {
+      ocrFailedFired.current = true;
+      capture("marker_ocr_failed", { kind });
+    }
+  }, [status, kind]);
+
   if (status === "graded") {
     return null;
   }

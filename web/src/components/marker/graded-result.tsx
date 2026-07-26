@@ -1,5 +1,6 @@
 "use client";
 import type { SubmissionOut } from "@/lib/types";
+import { capture } from "@/lib/analytics";
 import { ResultHero } from "./result-hero";
 import { AlexFeedbackCard } from "./alex-feedback-card";
 import { CriteriaBreakdown } from "./criteria-breakdown";
@@ -87,6 +88,7 @@ export function GradedResult({ submission, targetGrade = "A", markScheme }: Grad
           /* When a recommendation exists: only ghost "Try a similar question" */
           <button
             type="button"
+            onClick={() => capture("marker_try_similar_clicked", { submission_id: submission.id })}
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 font-sans text-[14px] font-medium text-foreground transition-opacity hover:opacity-70"
           >
             Try a similar question
@@ -95,6 +97,7 @@ export function GradedResult({ submission, targetGrade = "A", markScheme }: Grad
           /* No recommendation: "Try a similar question" is the primary CTA */
           <button
             type="button"
+            onClick={() => capture("marker_try_similar_clicked", { submission_id: submission.id })}
             className="inline-flex items-center gap-2 rounded-lg bg-foreground px-4 py-2 font-sans text-[14px] font-medium text-background transition-opacity hover:opacity-80 active:opacity-70"
           >
             Try a similar question

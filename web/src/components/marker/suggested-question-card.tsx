@@ -4,6 +4,7 @@ import type { MarkerV3LandingData } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { capture } from "@/lib/analytics";
 
 interface SuggestedQuestionCardProps {
   question: MarkerV3LandingData["question"];
@@ -56,7 +57,13 @@ export function SuggestedQuestionCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={onRefresh}
+            onClick={() => {
+              capture("marker_question_refreshed", {
+                refresh_count_used: refreshCountUsed,
+                refresh_limit: refreshLimit,
+              });
+              onRefresh();
+            }}
             disabled={refreshesRemaining <= 0}
           >
             Different Question · {refreshesRemaining} free refresh
