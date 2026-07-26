@@ -10,6 +10,8 @@ import { useFeatureFlag } from "@/lib/feature-flags";
 export default function HistoryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const markerEnabled = useFeatureFlag("marker_v2", true);
+  const markerV3 = useFeatureFlag("marker_v3", false);
+  void markerV3; // flag read ensures PostHog initialises marker_v3 for this page
   const { id } = use(params);
   const [submission, setSubmission] = useState<SubmissionOut | null>(null);
   const [error, setError] = useState(false);

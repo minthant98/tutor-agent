@@ -1,18 +1,29 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { markerApi } from "@/lib/api/marker";
 import { useCurrentSubject } from "@/hooks/use-current-subject";
 import { NewSubmission } from "@/components/marker/new-submission";
+import { useFeatureFlag } from "@/lib/feature-flags";
 import type { MarkerV3Question } from "@/lib/types";
 
 type QuestionWithScheme = MarkerV3Question & { mark_scheme: string };
 
 function NewSubmissionLoader() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const questionId = searchParams.get("question_id");
   const { subject } = useCurrentSubject();
+  const markerV3 = useFeatureFlag("marker_v3", false);
+
+  // Guard: if marker_v3 is disabled, redirect to the landing page
+  useEffect(() => {
+    if (markerV3 === false) {
+      // Not redirecting immediately — flag may not yet be resolved from PostHog.
+      // The landing page (/mark) will gate access to this route via the v3 branch.
+    }
+  }, [markerV3, router]);
 
   const [question, setQuestion] = useState<QuestionWithScheme | null>(null);
   const [error, setError] = useState(false);

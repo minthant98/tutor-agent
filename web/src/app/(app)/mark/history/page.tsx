@@ -14,6 +14,7 @@ function HistoryPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const markerEnabled = useFeatureFlag("marker_v2", true);
+  const markerV3 = useFeatureFlag("marker_v3", false);
 
   const status = searchParams.get("status") ?? undefined;
   const difficulty = searchParams.get("difficulty") ?? undefined;
@@ -31,6 +32,13 @@ function HistoryPageInner() {
       router.replace("/dashboard");
     }
   }, [markerEnabled, router]);
+
+  // marker_v3 gate: history page is part of the v3 surface;
+  // redirect to legacy /mark if flag is off (v2 retirement: Task 34)
+  // Note: we do NOT redirect here — history page has no v2 equivalent;
+  // it is only reachable via the v3 landing. The flag read is intentional
+  // for future A/B gating.
+  void markerV3; // flag read ensures PostHog initialises the flag for this page
 
   // Reset and reload when filters change
   useEffect(() => {

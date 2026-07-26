@@ -17,8 +17,7 @@ type View = "loading" | "answering" | "grading" | "results" | "error";
 export default function MarkPage() {
   const router = useRouter();
   const markerEnabled = useFeatureFlag("marker_v2", true);
-  // marker_v3 flag wired in Task 29 — use false constant until then
-  const markerV3Enabled = false; // TODO(Task-29): replace with useFeatureFlag("marker_v3", false)
+  const markerV3Enabled = useFeatureFlag("marker_v3", false);
   const { subject } = useCurrentSubject();
   const [v3Data, setV3Data] = useState<MarkerV3LandingData | null>(null);
   const [v3Loading, setV3Loading] = useState(false);
@@ -149,7 +148,7 @@ export default function MarkPage() {
     }, 1000);
   };
 
-  // ── v3 branch (flag wired in Task 29 — currently always false) ──────────────
+  // ── v3 branch (marker_v3 flag — controlled via PostHog) ─────────────────────
   if (markerV3Enabled) {
     return (
       <div className="mx-auto max-w-2xl space-y-6 px-4 py-6">

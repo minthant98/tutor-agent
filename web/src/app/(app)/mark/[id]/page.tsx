@@ -5,9 +5,7 @@ import { markerApi } from "@/lib/api/marker";
 import type { SubmissionOut } from "@/lib/types";
 import { GradedResult } from "@/components/marker/graded-result";
 import { ProcessingStates } from "@/components/marker/processing-states";
-
-// TODO(Task 29): replace `false` with `useFeatureFlag("marker_v3")` once flag is wired
-const MARKER_V3_ENABLED = false as const;
+import { useFeatureFlag } from "@/lib/feature-flags";
 
 export default function MarkResultPage({
   params,
@@ -15,6 +13,7 @@ export default function MarkResultPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const markerV3 = useFeatureFlag("marker_v3", false);
   const [submission, setSubmission] = useState<SubmissionOut | null>(null);
   const [error, setError] = useState(false);
 
@@ -72,13 +71,13 @@ export default function MarkResultPage({
         </div>
       )}
 
-      {/* Graded result — v3 surface (Task 29 will gate this via feature flag) */}
-      {!error && submission && submission.status === "graded" && MARKER_V3_ENABLED && (
+      {/* Graded result — v3 surface when flag is on; v2 fallback (ResultsView) until then */}
+      {!error && submission && submission.status === "graded" && markerV3 && (
         <GradedResult submission={submission} />
       )}
 
-      {/* Fallback: v2 results-view until marker_v3 flag is enabled (Task 29) */}
-      {!error && submission && submission.status === "graded" && !MARKER_V3_ENABLED && (
+      {/* v2 fallback — shown until marker_v3 is fully rolled out (retirement: Task 34) */}
+      {!error && submission && submission.status === "graded" && !markerV3 && (
         <GradedResult submission={submission} />
       )}
     </div>
