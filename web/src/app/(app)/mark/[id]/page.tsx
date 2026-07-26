@@ -4,6 +4,7 @@ import Link from "next/link";
 import { markerApi } from "@/lib/api/marker";
 import type { SubmissionOut } from "@/lib/types";
 import { GradedResult } from "@/components/marker/graded-result";
+import { ResultsView } from "@/components/marker/results-view";
 import { ProcessingStates } from "@/components/marker/processing-states";
 import { useFeatureFlag } from "@/lib/feature-flags";
 
@@ -78,7 +79,7 @@ export default function MarkResultPage({
 
       {/* v2 fallback — shown until marker_v3 is fully rolled out (retirement: Task 34) */}
       {!error && submission && submission.status === "graded" && !markerV3 && (
-        <GradedResult submission={submission} />
+        <ResultsView submission={submission} readonly />
       )}
     </div>
   );

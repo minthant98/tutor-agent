@@ -60,7 +60,13 @@ export const practiceApi = {
       method: "POST",
       body: JSON.stringify({ subject, session_type: "drill_in", topic }),
     }),
-  startSession: (subject: string, mode: string, topic?: string | null, skill?: string | null) =>
+  startSession: (
+    subject: string,
+    mode: string,
+    topic?: string | null,
+    skill?: string | null,
+    sourceSubmissionId?: string | null,
+  ) =>
     apiFetch<StartSessionResponse>("/sessions/start", {
       method: "POST",
       body: JSON.stringify({
@@ -68,6 +74,7 @@ export const practiceApi = {
         session_type: mode,
         ...(topic ? { topic } : {}),
         ...(skill ? { return_to: `marker_skill:${skill}` } : {}),
+        ...(sourceSubmissionId ? { source_submission_id: sourceSubmissionId } : {}),
       }),
     }),
 };

@@ -38,7 +38,9 @@ export function RecommendedNextStep({
       topic_id,
       sub_skill,
     });
-    router.push(`/practice/plan?mode=drill_in&topic=${topic_id}&skill=${sub_skill}`);
+    router.push(
+      `/practice/plan?mode=drill_in&topic=${encodeURIComponent(topic_id)}&skill=${encodeURIComponent(sub_skill)}&submission_id=${encodeURIComponent(submissionId)}`
+    );
   }
 
   return (

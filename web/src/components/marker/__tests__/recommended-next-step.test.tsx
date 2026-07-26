@@ -80,7 +80,7 @@ describe("RecommendedNextStep", () => {
     );
   });
 
-  it("clicking Start Practice calls router.push with correct URL", async () => {
+  it("clicking Start Practice calls router.push with correct URL including submission_id", async () => {
     const user = userEvent.setup();
     render(
       <RecommendedNextStep
@@ -92,7 +92,7 @@ describe("RecommendedNextStep", () => {
     await user.click(screen.getByRole("button", { name: /Start Practice/i }));
 
     expect(mockPush).toHaveBeenCalledWith(
-      "/practice/plan?mode=drill_in&topic=integration_basics&skill=substitution"
+      "/practice/plan?mode=drill_in&topic=integration_basics&skill=substitution&submission_id=sub-001"
     );
   });
 

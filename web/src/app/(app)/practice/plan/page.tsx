@@ -41,6 +41,7 @@ export default function PracticePlanPage() {
   const mode = searchParams.get("mode") ?? "weak_areas";
   const topic = searchParams.get("topic");
   const skill = searchParams.get("skill");
+  const submissionId = searchParams.get("submission_id");
 
   const [narration, setNarration] = useState<string>("");
   const [segments, setSegments] = useState<PlanSegment[]>([]);
@@ -66,13 +67,13 @@ export default function PracticePlanPage() {
 
   const handleStart = useCallback(async () => {
     try {
-      const res = await practiceApi.startSession(subject, mode, topic, skill);
+      const res = await practiceApi.startSession(subject, mode, topic, skill, submissionId);
       router.push(`/session/${res.session_id}`);
     } catch {
       // Surface the error inline rather than crashing
       setError("Could not start session. Please try again.");
     }
-  }, [router, subject, mode, topic, skill]);
+  }, [router, subject, mode, topic, skill, submissionId]);
 
   const handleChangeMode = useCallback(() => {
     router.push("/practice");
