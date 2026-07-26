@@ -19,29 +19,26 @@ export interface HistoryRowItem {
 function StatusIcon({ status }: { status: HistoryRowItem["status"] }) {
   if (status === "graded") {
     return (
-      <Check
-        aria-label="Graded"
-        size={16}
-        className="shrink-0 text-[var(--semantic-success-text)]"
-      />
+      <span className="flex items-center gap-1.5 text-[var(--semantic-success-text)]">
+        <Check aria-hidden="true" className="h-4 w-4 shrink-0" />
+        <span className="text-[12px]">Graded</span>
+      </span>
     );
   }
   if (status === "error") {
     return (
-      <AlertTriangle
-        aria-label="Extraction failed"
-        size={16}
-        className="shrink-0 text-[var(--semantic-warning-text)]"
-      />
+      <span className="flex items-center gap-1.5 text-[var(--semantic-warning-text)]">
+        <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0" />
+        <span className="text-[12px]">Extraction failed</span>
+      </span>
     );
   }
   // pending | extracting | grading
   return (
-    <Clock
-      aria-label="Pending"
-      size={16}
-      className="shrink-0 text-[var(--text-secondary)]"
-    />
+    <span className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+      <Clock aria-hidden="true" className="h-4 w-4 shrink-0" />
+      <span className="text-[12px]">Pending</span>
+    </span>
   );
 }
 

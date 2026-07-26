@@ -60,13 +60,19 @@ export function HistoryFilters() {
   );
 
   const handleDifficulty = (value: string) => {
-    if (!value) return; // toggle-group can fire empty when clicking active item
-    updateParams({ difficulty: value as DifficultyBucket });
+    if (!value || value === "any") {
+      updateParams({ difficulty: null });
+    } else {
+      updateParams({ difficulty: value as DifficultyBucket });
+    }
   };
 
   const handleStatus = (value: string) => {
-    if (!value) return;
-    updateParams({ status: value as StatusFilter });
+    if (!value || value === "all") {
+      updateParams({ status: null });
+    } else {
+      updateParams({ status: value as StatusFilter });
+    }
   };
 
   return (

@@ -17,18 +17,18 @@ const BASE_ITEM: HistoryRowItem = {
 };
 
 describe("HistoryRow", () => {
-  it("Graded row shows Check icon with aria-label 'Graded'", () => {
+  it("Graded row shows visible 'Graded' text label", () => {
     render(<HistoryRow item={BASE_ITEM} />);
-    expect(screen.getByLabelText("Graded")).toBeInTheDocument();
+    expect(screen.getByText("Graded")).toBeInTheDocument();
   });
 
-  it("Graded row does not show AlertTriangle or Clock icons", () => {
+  it("Graded row does not show 'Extraction failed' or 'Pending' labels", () => {
     render(<HistoryRow item={BASE_ITEM} />);
-    expect(screen.queryByLabelText("Extraction failed")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Pending")).not.toBeInTheDocument();
+    expect(screen.queryByText("Extraction failed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
   });
 
-  it("Error row shows AlertTriangle icon with aria-label 'Extraction failed'", () => {
+  it("Error row shows visible 'Extraction failed' text label", () => {
     render(
       <HistoryRow
         item={{
@@ -39,10 +39,10 @@ describe("HistoryRow", () => {
         }}
       />
     );
-    expect(screen.getByLabelText("Extraction failed")).toBeInTheDocument();
+    expect(screen.getByText("Extraction failed")).toBeInTheDocument();
   });
 
-  it("Error row does not show Check icon", () => {
+  it("Error row does not show 'Graded' label", () => {
     render(
       <HistoryRow
         item={{
@@ -53,10 +53,10 @@ describe("HistoryRow", () => {
         }}
       />
     );
-    expect(screen.queryByLabelText("Graded")).not.toBeInTheDocument();
+    expect(screen.queryByText("Graded")).not.toBeInTheDocument();
   });
 
-  it("Pending row shows Clock icon with aria-label 'Pending'", () => {
+  it("Pending row shows visible 'Pending' text label", () => {
     render(
       <HistoryRow
         item={{
@@ -67,7 +67,7 @@ describe("HistoryRow", () => {
         }}
       />
     );
-    expect(screen.getByLabelText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 
   it("Graded row renders marks score", () => {
