@@ -33,6 +33,22 @@ export const markerApi = {
     apiFetch<SubmissionOut>(`/marker/submissions/${submissionId}`),
   listSubmissions: (limit = 10, offset = 0) =>
     apiFetch<SubmissionOut[]>(`/marker/submissions?limit=${limit}&offset=${offset}`),
+  listHistory: (params?: {
+    status?: string;
+    difficulty?: string;
+    from?: string;
+    to?: string;
+    cursor?: string;
+  }) => {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.difficulty) qs.set("difficulty", params.difficulty);
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.cursor) qs.set("cursor", params.cursor);
+    const query = qs.toString();
+    return apiFetch<SubmissionOut[]>(`/marker/history${query ? `?${query}` : ""}`);
+  },
   getV3Landing: (subject = "pure_mathematics", nocache = false) =>
     apiFetch<MarkerV3LandingData>(
       `/marker/v3/landing?subject=${subject}${nocache ? "&nocache=true" : ""}`

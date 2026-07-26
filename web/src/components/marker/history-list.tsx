@@ -1,45 +1,73 @@
 "use client";
+
 import Link from "next/link";
 import type { SubmissionOut } from "@/lib/types";
+import { HistoryRow } from "@/components/marker/history-row";
 
-export function HistoryList({ items }: { items: SubmissionOut[] }) {
+interface HistoryListProps {
+  items: SubmissionOut[];
+  hasMore?: boolean;
+  onShowMore?: () => void;
+  loadingMore?: boolean;
+}
+
+export function HistoryList({
+  items,
+  hasMore = false,
+  onShowMore,
+  loadingMore = false,
+}: HistoryListProps) {
   if (items.length === 0) {
     return (
-      <p className="text-sm text-[var(--text-secondary)]">
-        No marked work yet. Head over to Mark my work to try it.
-      </p>
+      <div className="flex flex-col items-center gap-4 py-12 text-center">
+        <p className="text-[14px] text-[var(--text-secondary)]">
+          No graded submissions yet. Submit your first answer to see it here.
+        </p>
+        <Link
+          href="/mark/new"
+          className="inline-flex items-center rounded-full bg-[var(--primary)] px-4 py-2 text-[14px] font-medium text-white transition-opacity hover:opacity-90"
+        >
+          Submit your first answer
+        </Link>
+      </div>
     );
   }
+
   return (
-    <ul className="divide-y divide-[var(--border)] rounded-lg border border-[var(--border)] bg-white">
+    <div className="flex flex-col gap-2">
       {items.map((item) => {
-        const date = new Date(item.created_at).toLocaleDateString();
-        const pct = item.grade_pct !== null ? Math.round(item.grade_pct) : null;
+        // Build delta from readiness fields if available
+        const delta =
+          item.readiness_before != null && item.readiness_after != null
+            ? Math.round(item.readiness_after - item.readiness_before)
+            : null;
+
         return (
-          <li key={item.id}>
-            <Link
-              href={`/mark/history/${item.id}`}
-              className="flex items-center justify-between px-4 py-3 hover:bg-gray-50"
-            >
-              <span className="text-sm">
-                {date} · {item.question_text.slice(0, 60)}
-                {item.question_text.length > 60 && "…"}
-              </span>
-              {pct !== null && (
-                <span className="text-sm font-semibold">
-                  {item.marks_awarded}/{item.max_marks} ({pct}%)
-                </span>
-              )}
-              {item.status === "error" && (
-                <span className="text-sm text-red-600">error</span>
-              )}
-              {["pending", "extracting", "grading"].includes(item.status) && (
-                <span className="text-sm text-[var(--text-secondary)]">grading…</span>
-              )}
-            </Link>
-          </li>
+          <HistoryRow
+            key={item.id}
+            item={{
+              id: item.id,
+              status: item.status,
+              marks: item.marks_awarded,
+              max_marks: item.max_marks,
+              delta,
+              question_preview: item.question_text,
+              topic: null, // TODO: expose topic from GradedUpload once column exists
+              created_at: item.created_at,
+            }}
+          />
         );
       })}
-    </ul>
+
+      {hasMore && (
+        <button
+          onClick={onShowMore}
+          disabled={loadingMore}
+          className="mt-2 w-full rounded-card border border-[var(--border-subtle)] bg-transparent px-4 py-2.5 text-[14px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-1)] disabled:opacity-50"
+        >
+          {loadingMore ? "Loading…" : "Show more"}
+        </button>
+      )}
+    </div>
   );
 }
