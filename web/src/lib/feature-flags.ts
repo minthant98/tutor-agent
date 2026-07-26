@@ -15,7 +15,8 @@ export type StrideFlag =
   | "marker_v3"
   | "shell_v3"
   | "session_v3"
-  | "topics_v3";
+  | "topics_v3"
+  | "progress_v3";
 
 const KNOWN_FLAGS: ReadonlyArray<StrideFlag> = [
   "dashboard_v2",
@@ -31,6 +32,7 @@ const KNOWN_FLAGS: ReadonlyArray<StrideFlag> = [
   "shell_v3",
   "session_v3",
   "topics_v3",
+  "progress_v3",
 ];
 
 export function useFeatureFlag(flag: StrideFlag, defaultValue = true): boolean {
