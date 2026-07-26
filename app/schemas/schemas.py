@@ -17,6 +17,7 @@ class StartSessionRequest(BaseModel):
     ] = "practice"
     segment_plan: list[dict] | None = None  # optional preseeded plan (e.g. from Today's Focus)
     return_to: str | None = None  # for onboarding diagnostic — where to route on completion
+    source_submission_id: str | None = None  # Marker bridge: id of the originating GradedUpload
 
 
 class StartSessionResponse(BaseModel):

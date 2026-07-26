@@ -23,6 +23,8 @@ class SubmissionCreateIn(BaseModel):
     answer_text: str | None = None
     photo_extension: Literal["jpg", "jpeg", "png", "webp"] | None = None
     used_generated_mark_scheme: bool = False
+    # Client-measured seconds from question shown to submit — used for marker_time_to_submit_seconds
+    time_to_submit_seconds: float | None = None
 
 
 class SubmissionCreateOut(BaseModel):

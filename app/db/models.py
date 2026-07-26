@@ -81,6 +81,12 @@ class TutorSession(Base):
 
     state: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
 
+    # Marker bridge: set when this session was started from a Marker submission result.
+    # Enables loop-close analytics: marker_recommended_practice_completed.
+    source_submission_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, default=None
+    )
+
     student: Mapped["Student"] = relationship(back_populates="sessions")
 
 
@@ -252,6 +258,9 @@ class GradedUpload(Base):
     used_generated_mark_scheme: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False, server_default=sa.text("false")
     )
+
+    # Client-measured seconds from question shown to submit (for analytics)
+    time_to_submit_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)

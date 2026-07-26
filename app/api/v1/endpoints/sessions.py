@@ -13,6 +13,7 @@ from sqlalchemy import select, func
 from app.api.v1.endpoints.auth import get_current_student
 from app.core.dependencies import check_message_limit
 from app.core.session_store import delete_session, load_session, save_session
+from app.core.telemetry import capture
 from app.db.database import get_db
 from app.db.models import MasteryState, Student, TutorSession
 from app.schemas.schemas import (
@@ -98,12 +99,21 @@ async def start_session(
         # session_type == "practice" — Today's Focus or resumed session
         resolved_plan = body.segment_plan or []
 
+    import uuid as _uuid_mod
+    source_sub_id: Optional[_uuid_mod.UUID] = None
+    if body.source_submission_id:
+        try:
+            source_sub_id = _uuid_mod.UUID(body.source_submission_id)
+        except ValueError:
+            pass  # ignore malformed uuid — analytics only, not critical
+
     db_session = TutorSession(
         student_id=student.id,
         subject=body.subject,
         mode="explain",
         session_type=body.session_type,
         segment_plan=resolved_plan,
+        source_submission_id=source_sub_id,
     )
     db.add(db_session)
     await db.flush()
@@ -328,7 +338,6 @@ async def end_session(
     weak = state.get("weak_topics", []) if state else []
     turns = state.get("turn_count", 0) if state else 0
 
-    from app.core.telemetry import capture
     capture(str(student.id), "session_ended", {
         "session_id": session_id,
         "turn_count": turns,
@@ -337,6 +346,16 @@ async def end_session(
         "final_phase": (state.get("session_phase") if state else None),
         "reached_consolidation": ((state.get("session_phase") if state else None) == "consolidation"),
     })
+
+    # Loop-close metric: if this session was bridged from a Marker submission, fire
+    # marker_recommended_practice_completed so we can measure Marker → Practice conversion.
+    if db_session.source_submission_id is not None:
+        capture(str(student.id), "marker_recommended_practice_completed", {
+            "session_id": session_id,
+            "source_submission_id": str(db_session.source_submission_id),
+            "subject": db_session.subject,
+            "turn_count": turns,
+        })
 
     return EndSessionResponse(
         session_id=session_id,

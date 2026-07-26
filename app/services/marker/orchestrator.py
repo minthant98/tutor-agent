@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.telemetry import capture
-from app.db.models import GradedUpload, MasteryState
+from app.db.models import GradedUpload, MasteryState, TutorSession
 from app.services.marker import grader_llm, vision, storage
 from app.services.readiness_service import compute_readiness_pct
 
@@ -31,6 +31,9 @@ async def process_submission(db: AsyncSession, submission_id: UUID) -> None:
         logger.info("Submission %s already in status=%s; skipping",
                     submission_id, upload.status)
         return
+
+    # Record submission creation time for time-to-grade metric
+    grading_started_at = datetime.now(timezone.utc)
 
     try:
         # Extraction stage (photo only)
@@ -118,6 +121,25 @@ async def process_submission(db: AsyncSession, submission_id: UUID) -> None:
             topic_mastery_delta=(mastery_after - mastery_before),
             used_generated_mark_scheme=upload.used_generated_mark_scheme,
         )
+
+        # marker_time_to_grade_seconds: wall-clock seconds from pipeline start to graded
+        time_to_grade = (datetime.now(timezone.utc) - grading_started_at).total_seconds()
+        _capture_event(
+            "marker_time_to_grade_seconds", upload.student_id,
+            submission_id=str(upload.id),
+            seconds=round(time_to_grade, 2),
+            input_type=upload.input_type,
+        )
+
+        # marker_time_to_submit_seconds: client-supplied elapsed time from question shown to submit
+        if upload.time_to_submit_seconds is not None:
+            _capture_event(
+                "marker_time_to_submit_seconds", upload.student_id,
+                submission_id=str(upload.id),
+                seconds=upload.time_to_submit_seconds,
+                input_type=upload.input_type,
+            )
+
         if abs(readiness_after - readiness_before) > 0.1:
             _capture_event("readiness_changed", upload.student_id,
                            subject=upload.subject,

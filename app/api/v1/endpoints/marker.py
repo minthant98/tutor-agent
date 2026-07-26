@@ -131,6 +131,7 @@ async def post_submission(
         input_type=body.input_type,
         answer_text=body.answer_text if body.input_type == "typed" else None,
         used_generated_mark_scheme=body.used_generated_mark_scheme,
+        time_to_submit_seconds=body.time_to_submit_seconds,
         status="pending",
     )
 
