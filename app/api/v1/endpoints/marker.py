@@ -361,6 +361,111 @@ async def list_submissions(
     ]
 
 
+# ── Marker history endpoint (v3 — with filters + cursor pagination) ───────────
+
+@router.get("/history", response_model=list[SubmissionOut])
+async def get_history(
+    topic: Optional[str] = Query(None, description="Filter by topic slug (TODO: requires topic index)"),
+    status: Optional[str] = Query(None, description="Filter by status: graded|error|pending"),
+    difficulty: Optional[str] = Query(None, description="Difficulty bucket: easy|medium|hard"),
+    from_date: Optional[str] = Query(None, alias="from", description="ISO date lower bound (inclusive)"),
+    to_date: Optional[str] = Query(None, alias="to", description="ISO date upper bound (inclusive)"),
+    cursor: Optional[str] = Query(None, description="Cursor: created_at of last item (ISO datetime)"),
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> list[SubmissionOut]:
+    """Return paginated submission history with optional filters.
+
+    Difficulty mapping:
+      easy   → max_marks ≤ 3
+      medium → max_marks 4–6
+      hard   → max_marks ≥ 7
+
+    topic filter is accepted but deferred (TODO: add topic column to GradedUpload).
+    """
+    from sqlalchemy import and_
+
+    PAGE_LIMIT = 20
+
+    conditions = [GradedUpload.student_id == student.id]
+
+    # Status filter — normalise "pending" to cover extracting/grading states too
+    if status:
+        if status == "pending":
+            from sqlalchemy import or_
+            conditions.append(
+                or_(
+                    GradedUpload.status == "pending",
+                    GradedUpload.status == "extracting",
+                    GradedUpload.status == "grading",
+                )
+            )
+        else:
+            conditions.append(GradedUpload.status == status)
+
+    # Difficulty filter via max_marks bucketing
+    if difficulty:
+        if difficulty == "easy":
+            conditions.append(GradedUpload.max_marks <= 3)
+        elif difficulty == "medium":
+            conditions.append(GradedUpload.max_marks >= 4)
+            conditions.append(GradedUpload.max_marks <= 6)
+        elif difficulty == "hard":
+            conditions.append(GradedUpload.max_marks >= 7)
+
+    # Date range filters
+    if from_date:
+        try:
+            from_dt = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+            conditions.append(GradedUpload.created_at >= from_dt)
+        except ValueError:
+            pass  # ignore malformed date
+
+    if to_date:
+        try:
+            to_dt = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc)
+            # inclusive: add 1 day to cover the entire to_date
+            from datetime import timedelta
+            to_dt = to_dt + timedelta(days=1)
+            conditions.append(GradedUpload.created_at < to_dt)
+        except ValueError:
+            pass
+
+    # Cursor-based pagination — cursor is an ISO datetime of the last seen row
+    if cursor:
+        try:
+            cursor_dt = datetime.fromisoformat(cursor).replace(tzinfo=timezone.utc)
+            conditions.append(GradedUpload.created_at < cursor_dt)
+        except ValueError:
+            pass
+
+    # TODO: topic filter — deferred until topic column is added to GradedUpload
+    # if topic:
+    #     conditions.append(GradedUpload.topic == topic)
+
+    rows = (await db.execute(
+        select(GradedUpload).where(
+            and_(*conditions)
+        ).order_by(GradedUpload.created_at.desc()).limit(PAGE_LIMIT)
+    )).scalars().all()
+
+    return [
+        SubmissionOut(
+            id=str(r.id), status=r.status,
+            subject=r.subject, exam_board=r.exam_board,
+            question_id=r.question_id, question_text=r.question_text,
+            max_marks=r.max_marks, input_type=r.input_type,
+            answer_text=r.answer_text, marks_awarded=r.marks_awarded,
+            grade_pct=float(r.grade_pct) if r.grade_pct is not None else None,
+            feedback_json=r.feedback_json,
+            photo_url=None,
+            error_message=r.error_message,
+            created_at=r.created_at,
+        )
+        for r in rows
+    ]
+
+
 # ── Marker v3 landing ─────────────────────────────────────────────────────────
 
 FREE_TIER_REFRESH_LIMIT = 5
