@@ -29,11 +29,13 @@ from app.db.models import (
     GradedUpload,
     LearnerSubject,
     MasteryState,
+    ProgressNarration,
     ReadinessSnapshot,
     Student,
     SyllabusTopic,
     TutorSession,
 )
+from app.services.narration import progress_narration as _pn_service
 from app.services.readiness_service import compute_readiness_pct
 
 router = APIRouter(prefix="/progress", tags=["progress"])
@@ -302,24 +304,64 @@ async def progress_v3(
         time_in_app_minutes=time_in_app_minutes,
     )
 
-    # ── Narration — static MVP string ────────────────────────────────────────
-    # Task 31 will replace this with nightly LLM-generated narration from a
-    # progress_narration service. For MVP we produce a simple factual sentence.
-    if readiness_delta_14d > 0:
-        narration = (
-            f"Readiness is at {readiness_current}%, up {readiness_delta_14d} points "
-            f"over the last 14 days. Keep going — every session builds momentum."
-        )
-    elif readiness_delta_14d < 0:
-        narration = (
-            f"Readiness is at {readiness_current}%. It dipped slightly over the last "
-            f"14 days — a focused session today will turn that around."
-        )
+    # ── Narration — cached nightly narration (Task 31) ───────────────────────
+    # 1. Check progress_narrations for today's cached row (written by cron at 03:00 UTC).
+    # 2. If present, use it directly (effective 24h TTL via daily cron).
+    # 3. If missing (first request of day before cron runs), generate on-demand as fallback.
+    cached_row = (await db.execute(
+        select(ProgressNarration.text).where(
+            ProgressNarration.student_id == student.id,
+            ProgressNarration.subject == subject,
+            ProgressNarration.computed_date == today,
+        ).limit(1)
+    )).scalar_one_or_none()
+
+    if cached_row is not None:
+        narration = cached_row
     else:
-        narration = (
-            f"Readiness is at {readiness_current}%. You're holding steady — "
-            f"push into a new topic to build momentum."
-        )
+        # On-demand fallback: build context from available data and call LLM
+        cutoff_14 = today - timedelta(days=14)
+        narration_snaps = (await db.execute(
+            select(ReadinessSnapshot.snapshot_date, ReadinessSnapshot.readiness_pct)
+            .where(
+                ReadinessSnapshot.student_id == student.id,
+                ReadinessSnapshot.subject == subject,
+                ReadinessSnapshot.snapshot_date >= cutoff_14,
+            )
+            .order_by(ReadinessSnapshot.snapshot_date)
+        )).all()
+
+        readiness_series = [
+            (r.snapshot_date, int(round(r.readiness_pct))) for r in narration_snaps
+        ]
+
+        # Derive top gainer / slipper from mastery_by_topic
+        sorted_topics = sorted(mastery_by_topic, key=lambda t: t.mastery, reverse=True)
+        top_gainer = sorted_topics[0].id if sorted_topics else None
+        top_slipper = sorted_topics[-1].id if len(sorted_topics) > 1 else None
+
+        try:
+            pn_ctx = {
+                "readiness_series": readiness_series,
+                "top_gainer": top_gainer,
+                "top_slipper": top_slipper,
+            }
+            narration = await _pn_service.generate(pn_ctx)
+            narration = narration[:500]
+        except Exception:
+            # Final fallback: analytical static string (no praise, no speculation)
+            if readiness_delta_14d > 0:
+                narration = (
+                    f"Readiness is at {readiness_current}%, "
+                    f"up {readiness_delta_14d} points over the last 14 days."
+                )
+            elif readiness_delta_14d < 0:
+                narration = (
+                    f"Readiness is at {readiness_current}%, "
+                    f"down {abs(readiness_delta_14d)} points over the last 14 days."
+                )
+            else:
+                narration = f"Readiness is at {readiness_current}% — unchanged over the last 14 days."
 
     return ProgressV3Response(
         narration=narration,
