@@ -10,9 +10,10 @@ Idempotent: running twice on the same day is safe (INSERT ON CONFLICT UPDATE).
 """
 import asyncio
 import logging
+import uuid
 from datetime import date, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
@@ -81,46 +82,23 @@ async def _upsert_narration(
     text: str,
     computed_date: date,
 ) -> None:
-    """INSERT or UPDATE today's narration row (idempotent)."""
-    import uuid
-
+    """INSERT or UPDATE today's narration row (idempotent, atomic ON CONFLICT upsert)."""
     stmt = (
         pg_insert(ProgressNarration)
         .values(
             id=uuid.uuid4(),
             student_id=student_id,
             subject=subject,
-            text=text,
             computed_date=computed_date,
+            text=text,
         )
         .on_conflict_do_update(
-            index_elements=None,
-            constraint=None,
-            # Fall back to filtering on the composite columns
-            set_={"text": text, "computed_date": computed_date},
+            index_elements=["student_id", "subject", "computed_date"],
+            set_={"text": text, "computed_at": func.now()},
         )
     )
-    # pg_insert on_conflict_do_update requires either constraint name or index_elements.
-    # We use a WHERE-based approach instead via raw upsert pattern.
-    # Simpler: DELETE existing + INSERT (still atomic within a transaction).
-    from sqlalchemy import delete
-
-    await db.execute(
-        delete(ProgressNarration).where(
-            ProgressNarration.student_id == student_id,
-            ProgressNarration.subject == subject,
-            ProgressNarration.computed_date == computed_date,
-        )
-    )
-    db.add(
-        ProgressNarration(
-            student_id=student_id,
-            subject=subject,
-            text=text,
-            computed_date=computed_date,
-        )
-    )
-    await db.flush()
+    await db.execute(stmt)
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -174,8 +152,6 @@ async def run() -> None:
                         student_id,
                         subject,
                     )
-
-        await db.commit()
 
     await engine.dispose()
     logger.info("progress_narration_refresh complete for %s", today)
