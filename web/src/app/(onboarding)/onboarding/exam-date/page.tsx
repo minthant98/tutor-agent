@@ -3,14 +3,18 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
+import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
 import { ExamDatePicker } from "@/components/onboarding/fields/exam-date-picker";
 import { onboardingApi } from "@/lib/api/onboarding";
+import { useFeatureFlag } from "@/lib/feature-flags";
 
 export default function ExamDateStep() {
   const router = useRouter();
   const startTime = useRef<number>(0);
   const [date, setDate] = useState<string | null>(null);
   const [canContinue, setCanContinue] = useState<boolean>(false);
+  const [continuing, setContinuing] = useState(false);
+  const v3 = useFeatureFlag("onboarding_v3", false);
 
   useEffect(() => {
     startTime.current = Date.now();
@@ -19,9 +23,40 @@ export default function ExamDateStep() {
   const handleChange = (val: string | null) => {
     setDate(val);
     // Can continue if they have a date OR if they explicitly chose null (don't know)
-    // We use a separate flag tracked via the picker's dontKnow checkbox
     setCanContinue(true);
   };
+
+  const handleContinue = async () => {
+    setContinuing(true);
+    try {
+      await onboardingApi.submitExamDate({ exam_date: date });
+      try {
+        posthog.capture("onboarding_step_completed", {
+          step_name: "exam-date",
+          time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+        });
+      } catch (_) {}
+      const state = await onboardingApi.getState();
+      router.push(`/onboarding/${state.next_step}`);
+    } finally {
+      setContinuing(false);
+    }
+  };
+
+  if (v3) {
+    return (
+      <OnboardingShell
+        currentStep={3}
+        alexLine="Alex paces your sessions against this deadline — earlier is better than optimistic."
+        heading="When is your exam?"
+        onContinue={handleContinue}
+        canContinue={canContinue}
+        continuing={continuing}
+      >
+        <ExamDatePicker onChange={handleChange} />
+      </OnboardingShell>
+    );
+  }
 
   return (
     <WizardShell step="exam-date">
@@ -32,17 +67,7 @@ export default function ExamDateStep() {
       <ExamDatePicker onChange={handleChange} />
       <button
         disabled={!canContinue}
-        onClick={async () => {
-          await onboardingApi.submitExamDate({ exam_date: date });
-          try {
-            posthog.capture("onboarding_step_completed", {
-              step_name: "exam-date",
-              time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
-            });
-          } catch (_) {}
-          const state = await onboardingApi.getState();
-          router.push(`/onboarding/${state.next_step}`);
-        }}
+        onClick={handleContinue}
         className="mt-8 rounded-lg bg-[var(--blue)] px-5 py-3 text-white disabled:opacity-50"
       >
         Continue

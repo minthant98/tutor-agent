@@ -3,12 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
+import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
 import { SystemPicker } from "@/components/onboarding/fields/system-picker";
+import { useFeatureFlag } from "@/lib/feature-flags";
 
 export default function EducationSystemStep() {
   const router = useRouter();
   const startTime = useRef<number>(0);
   const [system, setSystem] = useState<string>("");
+  const v3 = useFeatureFlag("onboarding_v3", false);
 
   useEffect(() => {
     startTime.current = Date.now();
@@ -25,6 +28,20 @@ export default function EducationSystemStep() {
     } catch (_) {}
     router.push("/onboarding/subjects");
   };
+
+  if (v3) {
+    return (
+      <OnboardingShell
+        currentStep={0}
+        alexLine="Alex needs to know your syllabus before it can plan sessions."
+        heading="What education system are you in?"
+        onContinue={handleContinue}
+        canContinue={system === "a_level"}
+      >
+        <SystemPicker onChange={setSystem} />
+      </OnboardingShell>
+    );
+  }
 
   return (
     <WizardShell step="education-system">

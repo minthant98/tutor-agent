@@ -3,7 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import posthog from "posthog-js";
 import { WizardShell } from "@/components/onboarding/wizard-shell";
+import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
 import { onboardingApi } from "@/lib/api/onboarding";
+import { useFeatureFlag } from "@/lib/feature-flags";
 
 const PREFERENCE_OPTIONS = [
   {
@@ -39,6 +41,8 @@ export default function PreferencesStep() {
     step_by_step: false,
     practice: false,
   });
+  const [continuing, setContinuing] = useState(false);
+  const v3 = useFeatureFlag("onboarding_v3", false);
 
   useEffect(() => {
     startTime.current = Date.now();
@@ -46,6 +50,71 @@ export default function PreferencesStep() {
 
   const toggle = (key: PrefKey) =>
     setPrefs((p) => ({ ...p, [key]: !p[key] }));
+
+  const handleContinue = async () => {
+    setContinuing(true);
+    try {
+      await onboardingApi.submitPreferences(prefs);
+      try {
+        posthog.capture("onboarding_step_completed", {
+          step_name: "preferences",
+          time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+        });
+      } catch (_) {}
+      if (v3) {
+        router.push("/onboarding/complete");
+      } else {
+        const state = await onboardingApi.getState();
+        router.push(`/onboarding/${state.next_step}`);
+      }
+    } finally {
+      setContinuing(false);
+    }
+  };
+
+  const preferencesList = (
+    <div className="grid gap-2">
+      {PREFERENCE_OPTIONS.map((opt) => {
+        const key = opt.id as PrefKey;
+        const active = prefs[key];
+        return (
+          <button
+            key={opt.id}
+            onClick={() => toggle(key)}
+            className={`flex items-center justify-between rounded-lg border p-3 text-left transition-colors
+              ${
+                active
+                  ? "border-[var(--primary)] bg-[var(--surface-1)]"
+                  : "border-[var(--border-subtle)] hover:border-[var(--primary)]"
+              }`}
+          >
+            <div>
+              <div className="font-medium text-[var(--text-primary)]">{opt.label}</div>
+              <div className="text-sm text-[var(--text-secondary)]">
+                {opt.desc}
+              </div>
+            </div>
+            {active && <span className="text-[var(--primary)]">✓</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  if (v3) {
+    return (
+      <OnboardingShell
+        currentStep={5}
+        alexLine="Alex will lean on these when explaining new material."
+        heading="How do you like to learn?"
+        onContinue={handleContinue}
+        canContinue={true}
+        continuing={continuing}
+      >
+        {preferencesList}
+      </OnboardingShell>
+    );
+  }
 
   return (
     <WizardShell step="preferences">
@@ -80,17 +149,7 @@ export default function PreferencesStep() {
         })}
       </div>
       <button
-        onClick={async () => {
-          await onboardingApi.submitPreferences(prefs);
-          try {
-            posthog.capture("onboarding_step_completed", {
-              step_name: "preferences",
-              time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
-            });
-          } catch (_) {}
-          const state = await onboardingApi.getState();
-          router.push(`/onboarding/${state.next_step}`);
-        }}
+        onClick={handleContinue}
         className="mt-8 rounded-lg bg-[var(--blue)] px-5 py-3 text-white"
       >
         Continue
