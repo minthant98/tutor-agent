@@ -16,7 +16,7 @@ upsert path.
 """
 from alembic import op
 
-revision = "20260727_unique_progress_narrations"
+revision = "20260727_uniq_prog_narrations"
 down_revision = "20260727_add_progress_narrations"
 branch_labels = None
 depends_on = None
