@@ -307,6 +307,17 @@ export interface FeedbackJson {
   used_generated_mark_scheme?: boolean;
 }
 
+export interface MemoryRef {
+  text: string;
+  evidence_days_ago: number;
+}
+
+export interface RecommendedPractice {
+  topic_id: string;
+  sub_skill: string;
+  blurb: string;
+}
+
 export interface SubmissionOut {
   id: string;
   status: "pending" | "extracting" | "grading" | "graded" | "error";
@@ -323,4 +334,38 @@ export interface SubmissionOut {
   photo_url: string | null;
   error_message: string | null;
   created_at: string;
+  // Task 25: top-level readiness fields (1-decimal precision)
+  readiness_before?: number | null;
+  readiness_after?: number | null;
+  // Task 25: Alex memory reference
+  memory_ref?: MemoryRef | null;
+  // Task 27: recommended next step derived from missed criteria
+  recommended_practice?: RecommendedPractice | null;
+}
+
+// ── Marker v3 ─────────────────────────────────────────────────────────────────
+
+export interface MarkerV3Question {
+  id: string;
+  text: string;
+  max_marks: number;
+  paper_ref: string;
+}
+
+export interface MarkerV3RecentSubmission {
+  id: string;
+  created_at: string;
+  marks: number | null;
+  max_marks: number;
+  delta_readiness: number | null;
+  question_preview: string;
+}
+
+export interface MarkerV3LandingData {
+  narration: string;
+  question: MarkerV3Question;
+  refresh_count_used: number;
+  refresh_limit: number | null;
+  tier: "free" | "pro";
+  recent_submissions: MarkerV3RecentSubmission[];
 }

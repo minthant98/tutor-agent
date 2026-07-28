@@ -4,9 +4,9 @@ from datetime import datetime, date
 import sqlalchemy as sa
 from sqlalchemy import (
     JSON, Boolean, Date, DateTime, Float,
-    ForeignKey, Integer, String, UniqueConstraint, func, text,
+    ForeignKey, Index, Integer, String, UniqueConstraint, func, text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.database import Base
@@ -77,6 +77,14 @@ class TutorSession(Base):
     )
     ended_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    state: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default=None)
+
+    # Marker bridge: set when this session was started from a Marker submission result.
+    # Enables loop-close analytics: marker_recommended_practice_completed.
+    source_submission_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), nullable=True, default=None
     )
 
     student: Mapped["Student"] = relationship(back_populates="sessions")
@@ -251,6 +259,9 @@ class GradedUpload(Base):
         Boolean, default=False, nullable=False, server_default=sa.text("false")
     )
 
+    # Client-measured seconds from question shown to submit (for analytics)
+    time_to_submit_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     error_message: Mapped[str | None] = mapped_column(String, nullable=True)
 
@@ -259,4 +270,54 @@ class GradedUpload(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class ProgressNarration(Base):
+    """Nightly LLM-generated progress narration cached per student/subject/day."""
+
+    __tablename__ = "progress_narrations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subject: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    text: Mapped[str] = mapped_column(String(500), nullable=False)
+    computed_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index(
+            "idx_progress_narrations_student_subject_date",
+            "student_id", "subject", "computed_date",
+        ),
+    )
+
+
+class Observation(Base):
+    """Alex observations with traceability — up to 3 per student/subject/week."""
+
+    __tablename__ = "observations"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    student_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subject: Mapped[str] = mapped_column(String(64), nullable=False)
+    text: Mapped[str] = mapped_column(String(500), nullable=False)
+    trace_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    week_of: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        Index("idx_observations_student_subject_week", "student_id", "subject", "week_of"),
     )

@@ -17,6 +17,7 @@ class StartSessionRequest(BaseModel):
     ] = "practice"
     segment_plan: list[dict] | None = None  # optional preseeded plan (e.g. from Today's Focus)
     return_to: str | None = None  # for onboarding diagnostic — where to route on completion
+    source_submission_id: str | None = None  # Marker bridge: id of the originating GradedUpload
 
 
 class StartSessionResponse(BaseModel):
@@ -72,6 +73,9 @@ class ActiveSessionResponse(BaseModel):
     last_message: str | None
     segment_plan: list[dict] = []
     current_segment_idx: int = 0
+    # Sidebar fields (added in v3 UI pass)
+    session_type: str | None = None
+    progress: dict | None = None
 
 
 class StudyPlanWeek(BaseModel):

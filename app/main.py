@@ -29,6 +29,13 @@ from app.api.v1.endpoints.notifications import router as notif_router
 from app.api.v1.endpoints.readyz import router as readyz_router
 from app.api.v1.endpoints.practice import router as practice_router
 from app.api.v1.endpoints.marker import router as marker_router
+from app.api.v1.endpoints.search import router as search_router
+from app.api.v1.endpoints.dashboard_v3 import router as dashboard_v3_router
+from app.api.v1.endpoints.observations import router as observations_router
+from app.api.v1.endpoints.alex_session import router as alex_router
+from app.api.v1.endpoints.topics import router as topics_router
+from app.api.v1.endpoints.progress import router as progress_router
+from app.api.v1.endpoints.feedback import router as feedback_router
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +86,13 @@ app.include_router(notif_router, prefix=settings.api_v1_prefix)
 app.include_router(readyz_router)  # no api prefix — reachable at /readyz
 app.include_router(practice_router, prefix=settings.api_v1_prefix)
 app.include_router(marker_router, prefix=settings.api_v1_prefix)
+app.include_router(search_router, prefix=settings.api_v1_prefix)
+app.include_router(dashboard_v3_router, prefix=settings.api_v1_prefix)
+app.include_router(observations_router, prefix=settings.api_v1_prefix)
+app.include_router(alex_router, prefix=settings.api_v1_prefix)
+app.include_router(topics_router, prefix=settings.api_v1_prefix)
+app.include_router(progress_router, prefix=settings.api_v1_prefix)
+app.include_router(feedback_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")

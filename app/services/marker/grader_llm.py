@@ -103,6 +103,13 @@ Grade strictly against the mark scheme. Award marks only when the student
 demonstrates the required step. Codes: M1 (method mark), A1 (accuracy mark),
 B1 (independent mark).
 
+Feedback discipline — every feedback paragraph MUST answer three things in order:
+1. What happened — reference the specific step or criterion the student attempted
+2. Why — explain the underlying cause of the marks lost or awarded
+3. What next — end with one concrete actionable next step
+
+Never end a paragraph without a specific next-step recommendation.
+
 Return ONLY a valid JSON object matching this exact schema — no other text:
 {
   "marks_awarded": <int 0..max_marks>,

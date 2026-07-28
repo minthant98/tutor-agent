@@ -7,6 +7,15 @@ import { renderMath } from '@/lib/math'
 import { track } from '@/lib/posthog'
 import { ExitConfirmation } from '@/components/session/exit-confirmation'
 import { SegmentProgress } from '@/components/session/segment-progress'
+import { useFeatureFlag } from '@/lib/feature-flags'
+import { SessionShell } from '@/components/session/session-shell'
+import { SegmentBand } from '@/components/session/segment-band'
+import type { SegmentDisplay } from '@/components/session/segment-band'
+import { SessionContent, type Segment } from '@/components/session/session-content'
+import { ActionBar } from '@/components/session/action-bar'
+import { SegmentTransition } from '@/components/session/segment-transition'
+import { SessionComplete } from '@/components/session/session-complete'
+import { useAutosave } from '@/hooks/use-autosave'
 
 type ChatItem =
   | { kind: 'msg'; id: string; role: 'student' | 'tutor'; content: string; streaming?: boolean }
@@ -204,6 +213,7 @@ export default function SessionPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const opening = searchParams.get('opening')
+  const sessionV3 = useFeatureFlag('session_v3', false)
 
   const [items, setItems] = useState<ChatItem[]>([])
   const [input, setInput] = useState('')
@@ -308,6 +318,98 @@ export default function SessionPage() {
   const phaseColor = PHASE_COLOR[phase] ?? '#94A3B8'
   const studentMsgCount = items.filter(it => it.kind === 'msg' && it.role === 'student').length
   const hasAnsweredAtLeastOne = items.length > 1
+
+  // ── v3 focus-mode shell ──────────────────────────────────────────────────
+  // Minimal transition + completion state for MVP. Real business logic
+  // (advancing segments on backend, tracking completion via API, computing
+  // readiness delta) is a TODO — left for the backend plumbing milestone.
+  const [transitioningTo, setTransitioningTo] = useState<{
+    prev: { intent: string };
+    next: { intent: string; topic: string; minutes: number };
+  } | null>(null)
+  const [isComplete, setIsComplete] = useState(false)
+
+  // Autosave: persist cursor position + input draft whenever they change.
+  // Fires debounced PATCH /api/v1/sessions/{id}/state — failures are silent.
+  useAutosave({ sessionId: id, state: { cursor: currentSegmentIdx, input_draft: input } })
+
+  if (sessionV3) {
+    // Convert legacy segment plan to SegmentDisplay format
+    const segmentDisplays: SegmentDisplay[] = segmentPlan.map((s, i) => ({
+      intent: s.intent,
+      // Legacy plan has no topic — fall back to intent label
+      topic: s.intent,
+      state:
+        i < currentSegmentIdx
+          ? 'completed'
+          : i === currentSegmentIdx
+          ? 'current'
+          : 'upcoming',
+    }))
+
+    // MOCK segment — real content plumbing is a future backend concern (noted in Task 10 report).
+    // The page passes a hardcoded segment so SessionContent renders and the page compiles.
+    const mockSegment: Segment = {
+      intent: 'teach',
+      blocks: [
+        { type: 'prose', text: 'Welcome to your session. Content from the backend will appear here.' },
+      ],
+    }
+
+    return (
+      <SessionShell segments={segmentDisplays} sessionId={id}>
+        <SessionContent segment={mockSegment} />
+
+        {/* ActionBar: primary advances segment; right skips (MVP stubs). */}
+        <ActionBar
+          primary={{
+            label: 'Continue',
+            shortcut: '↵',
+            // TODO: real advance-segment logic; for now shows transition overlay demo
+            onClick: () => {
+              if (segmentPlan.length > 1 && currentSegmentIdx < segmentPlan.length - 1) {
+                const curr = segmentPlan[currentSegmentIdx]
+                const nxt = segmentPlan[currentSegmentIdx + 1]
+                setTransitioningTo({
+                  prev: { intent: curr.intent },
+                  next: { intent: nxt.intent, topic: nxt.intent, minutes: 6 },
+                })
+              } else {
+                // No next segment → session complete
+                setIsComplete(true)
+              }
+            },
+          }}
+          right={{ label: 'Skip', onClick: () => {} }}
+        />
+
+        {/* Segment transition overlay — shown between segments */}
+        {transitioningTo && (
+          <SegmentTransition
+            prev={transitioningTo.prev}
+            next={transitioningTo.next}
+            onContinue={() => {
+              // TODO: call API to advance segment index; update currentSegmentIdx
+              setCurrentSegmentIdx(i => i + 1)
+              setTransitioningTo(null)
+            }}
+          />
+        )}
+
+        {/* Session complete screen — shown when all segments done */}
+        {isComplete && (
+          <SessionComplete
+            // TODO: compute real elapsed minutes from session start time
+            totalMinutes={22}
+            segmentCount={segmentPlan.length || 3}
+            // TODO: fetch readiness from backend after session finalization
+            readinessAfter={71}
+          />
+        )}
+      </SessionShell>
+    )
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex h-screen flex-col" style={{ background: 'var(--bg)' }}>

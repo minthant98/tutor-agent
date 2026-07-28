@@ -1,23 +1,147 @@
 @import "tailwindcss";
 
-:root {
-  /* Stride palette */
-  --navy: #0F172A;          /* Primary navy / primary text */
-  --navy-800: #1E293B;      /* Secondary navy (Slate Navy) */
+/* ── Design token CSS variables ── */
+:root, [data-theme="light"] {
+  --surface-0: #FCFCFD;
+  --surface-1: #F8F8FA;
+  --surface-2: #FFFFFF;
+  --surface-3: #FFFFFF;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --primary: #6268F2;
+  --primary-focus: #4E54D6;
+  --ease-standard: cubic-bezier(.22, .61, .36, 1);
+  --duration-fast: 120ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+
+  /* Readiness stops */
+  --readiness-0: #5B7CE0;
+  --readiness-1: #6268F2;
+  --readiness-2: #A889F0;
+  --readiness-3: #E8C070;
+  --readiness-4: #F5A356;
+
+  /* Educational */
+  --teacher-feedback: #8FB88C;
+
+  /* Semantic */
+  --semantic-success-text: #8FB88C;
+  --semantic-success-bg: rgba(143, 184, 140, 0.08);
+  --semantic-warning-text: #D4B26E;
+  --semantic-warning-bg: rgba(212, 178, 110, 0.08);
+  --semantic-danger-text: #D48A8A;
+  --semantic-danger-bg: rgba(212, 138, 138, 0.08);
+
+  /* Legacy palette kept for backward compatibility */
+  --navy: #0F172A;
+  --navy-800: #1E293B;
   --navy-700: #334155;
-  --blue: #10B981;          /* Accent (Emerald) — var name kept for compatibility */
-  --blue-dark: #059669;     /* Emerald-700 — for hover/pressed */
-  --green: #34D399;         /* Success (Bright Emerald) */
+  --blue: #10B981;
+  --blue-dark: #059669;
+  --green: #34D399;
   --purple: #7C3AED;
-  --bg: #F8FAFC;            /* Off-white background */
-  --bg-card: #FFFFFF;
+  --bg: var(--surface-0);
+  --bg-card: var(--surface-2);
   --border: #E2E8F0;
   --text-primary: #0F172A;
   --text-secondary: #64748B;
   --text-muted: #94A3B8;
 }
 
+[data-theme="dark"] {
+  --surface-0: #0E0E11;
+  --surface-1: #151519;
+  --surface-2: #1C1C21;
+  --surface-3: #1C1C21;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --primary: #6268F2;
+  --primary-focus: #7B7FF0;
+
+  /* Legacy overrides for dark mode */
+  --bg: var(--surface-0);
+  --bg-card: var(--surface-2);
+  --border: rgba(255, 255, 255, 0.1);
+  --text-primary: #F0F0F8;
+  --text-secondary: #A0A0B8;
+  --text-muted: #60607A;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --surface-0: #0E0E11;
+    --surface-1: #151519;
+    --surface-2: #1C1C21;
+    --surface-3: #1C1C21;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --primary-focus: #7B7FF0;
+    --bg: var(--surface-0);
+    --bg-card: var(--surface-2);
+    --border: rgba(255, 255, 255, 0.1);
+    --text-primary: #F0F0F8;
+    --text-secondary: #A0A0B8;
+    --text-muted: #60607A;
+  }
+}
+
+/* ── Tailwind 4 theme extension ── */
 @theme inline {
+  /* Surfaces */
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  /* Primary */
+  --color-primary: var(--primary);
+
+  /* Border */
+  --color-border-subtle: var(--border-subtle);
+
+  /* Readiness */
+  --color-readiness-0: var(--readiness-0);
+  --color-readiness-1: var(--readiness-1);
+  --color-readiness-2: var(--readiness-2);
+  --color-readiness-3: var(--readiness-3);
+  --color-readiness-4: var(--readiness-4);
+
+  /* Educational */
+  --color-question: #7B7FF0;
+  --color-answer: #6268F2;
+  --color-hint: #A889F0;
+  --color-mark-scheme: #E8C070;
+  --color-alex-feedback: #6268F2;
+  --color-teacher-feedback: #8FB88C;
+
+  /* Typography */
+  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, ui-monospace, monospace);
+
+  /* Font sizes */
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-24: 24px;
+  --text-32: 32px;
+  --text-40: 40px;
+
+  /* Border radii */
+  --radius-input: 8px;
+  --radius-button: 8px;
+  --radius-card: 10px;
+  --radius-dialog: 14px;
+
+  /* Motion */
+  --ease-standard: cubic-bezier(.22, .61, .36, 1);
+  --duration-fast: 120ms;
+  --duration-base: 220ms;
+  --duration-slow: 320ms;
+  --transition-duration-fast: 120ms;
+  --transition-duration-base: 220ms;
+  --transition-duration-slow: 320ms;
+
+  /* Legacy colors */
   --color-navy: var(--navy);
   --color-stride-emerald: var(--blue);
   --color-stride-success: var(--green);
@@ -34,11 +158,33 @@ html {
 }
 
 body {
-  background: var(--bg);
+  background: var(--surface-0);
   color: var(--text-primary);
+  color-scheme: dark light;
 }
 
-/* KaTeX sizing */
+/* ── Focus ring ── */
+*:focus-visible {
+  outline: 2px solid var(--primary-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0s !important;
+    transition-duration: 0s !important;
+  }
+}
+
+/* ── Session focus mode — hide shell chrome when a session is active ── */
+html[data-session-focus="true"] aside[data-sidebar],
+html[data-session-focus="true"] header[data-topbar] {
+  display: none;
+}
+
+/* ── KaTeX sizing ── */
 .katex {
   font-size: 1.05em;
 }

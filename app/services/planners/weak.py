@@ -4,7 +4,16 @@ Adaptive intent selection: each segment's intent is derived from the topic's
 current mastery via _intent_from_mastery. A near-zero-mastery topic gets a
 worked example (teach), a partial-mastery topic gets repetition (reinforce),
 and a solid topic gets a no-hint pressure test (assess).
+
+Topic ranking uses a composite impact_score rather than raw mastery so that
+recency (days since last practice) is factored in alongside weakness.
+
+Note: SyllabusTopic has no `weight` or prereq-children columns as of
+2026.1 schema. Safe defaults are applied:
+  exam_frequency=0.1  (mild non-zero weight)
+  prereq_children=0   (no downstream unlocks assumed)
 """
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +28,59 @@ from app.services.planners.base import (
     _intent_from_mastery,
     _weakest_topics_with_attempts,
 )
+from app.services.planners.impact_score import TopicStats, impact_score
+
+_DEFAULT_EXAM_FREQUENCY = 0.1
+_DEFAULT_PREREQ_CHILDREN = 0
+
+
+async def _topics_ranked_by_impact(
+    db: AsyncSession,
+    student_id: UUID,
+    subject: str,
+    limit: int,
+) -> list[tuple[str, float]]:
+    """Return [(topic_id, mastery)] ordered by impact_score descending.
+
+    Fetches all attempted topics, computes impact_score using days_since_practice
+    from MasteryState.last_reviewed_at plus safe defaults for fields absent from
+    the current schema (prereq_children=0, exam_frequency=0.1).
+    """
+    from sqlalchemy import select
+    from app.db.models import MasteryState
+
+    res = await db.execute(
+        select(MasteryState.topic, MasteryState.mastery_score, MasteryState.last_reviewed_at)
+        .where(
+            MasteryState.student_id == student_id,
+            MasteryState.subject == subject,
+            MasteryState.total_attempts > 0,
+        )
+    )
+    rows = res.all()
+
+    now = datetime.now(timezone.utc)
+    scored: list[tuple[float, str, float]] = []
+    for topic_id, mastery, last_reviewed_at in rows:
+        if last_reviewed_at is None:
+            days = 30  # treat never-reviewed as maximally stale
+        else:
+            # last_reviewed_at may be offset-naive (UTC) from older rows
+            lr = last_reviewed_at
+            if lr.tzinfo is None:
+                lr = lr.replace(tzinfo=timezone.utc)
+            days = max((now - lr).days, 0)
+
+        stats = TopicStats(
+            mastery=mastery,
+            days_since_practice=days,
+            prereq_children=_DEFAULT_PREREQ_CHILDREN,
+            exam_frequency=_DEFAULT_EXAM_FREQUENCY,
+        )
+        scored.append((impact_score(stats), topic_id, mastery))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [(topic_id, mastery) for _, topic_id, mastery in scored[:limit]]
 
 
 class WeakAreasPlanner:
@@ -32,7 +94,7 @@ class WeakAreasPlanner:
         subject: str,
         topic: str | None,
     ) -> BuildResult:
-        weak = await _weakest_topics_with_attempts(db, student_id, subject, limit=2)
+        weak = await _topics_ranked_by_impact(db, student_id, subject, limit=2)
         fallback_flags = [False] * len(weak)
 
         if len(weak) < 2:

@@ -1,14 +1,19 @@
 import json
 import logging
+from datetime import datetime, timezone
+from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.api.v1.endpoints.auth import get_current_student
 from app.core.dependencies import check_message_limit
 from app.core.session_store import delete_session, load_session, save_session
+from app.core.telemetry import capture
 from app.db.database import get_db
 from app.db.models import MasteryState, Student, TutorSession
 from app.schemas.schemas import (
@@ -25,6 +30,11 @@ from app.agents.tutor_agent import generate_opening_message
 from app.schemas.planner_reason import PlannerReasonModel
 from app.services.session_service import stream_response, _rebuild_resume_state
 from app.workflows.state import SessionState, initial_state
+
+
+class SessionStatePatch(BaseModel):
+    cursor: Optional[dict] = None  # {segment_index: int, block_index: int}
+    input_draft: Optional[str] = None
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["sessions"])
@@ -89,12 +99,21 @@ async def start_session(
         # session_type == "practice" — Today's Focus or resumed session
         resolved_plan = body.segment_plan or []
 
+    import uuid as _uuid_mod
+    source_sub_id: Optional[_uuid_mod.UUID] = None
+    if body.source_submission_id:
+        try:
+            source_sub_id = _uuid_mod.UUID(body.source_submission_id)
+        except ValueError:
+            pass  # ignore malformed uuid — analytics only, not critical
+
     db_session = TutorSession(
         student_id=student.id,
         subject=body.subject,
         mode="explain",
         session_type=body.session_type,
         segment_plan=resolved_plan,
+        source_submission_id=source_sub_id,
     )
     db.add(db_session)
     await db.flush()
@@ -319,7 +338,6 @@ async def end_session(
     weak = state.get("weak_topics", []) if state else []
     turns = state.get("turn_count", 0) if state else 0
 
-    from app.core.telemetry import capture
     capture(str(student.id), "session_ended", {
         "session_id": session_id,
         "turn_count": turns,
@@ -328,6 +346,16 @@ async def end_session(
         "final_phase": (state.get("session_phase") if state else None),
         "reached_consolidation": ((state.get("session_phase") if state else None) == "consolidation"),
     })
+
+    # Loop-close metric: if this session was bridged from a Marker submission, fire
+    # marker_recommended_practice_completed so we can measure Marker → Practice conversion.
+    if db_session.source_submission_id is not None:
+        capture(str(student.id), "marker_recommended_practice_completed", {
+            "session_id": session_id,
+            "source_submission_id": str(db_session.source_submission_id),
+            "subject": db_session.subject,
+            "turn_count": turns,
+        })
 
     return EndSessionResponse(
         session_id=session_id,
@@ -351,6 +379,9 @@ async def get_active_session(
     result = await db.execute(
         select(TutorSession)
         .where(TutorSession.student_id == student.id, TutorSession.ended_at.is_(None))
+        # TutorSession lacks updated_at; started_at.desc() is a proxy.
+        # If concurrent open sessions ever become possible, add updated_at
+        # and switch this ordering (see model debt in ledger).
         .order_by(TutorSession.started_at.desc())
         .limit(1)
     )
@@ -362,6 +393,24 @@ async def get_active_session(
     tutor_messages = [m for m in messages if m.get("role") == "tutor"]
     last_message = tutor_messages[-1]["content"][:120] if tutor_messages else None
 
+    segment_plan = session.segment_plan or []
+    current_idx = session.current_segment_idx or 0
+
+    # Build sidebar progress (current_question is 1-based for display)
+    session_type = session.session_type
+    if session_type in ("quick_practice", "weak_areas", "drill_in", "marker"):
+        progress = {
+            "current_question": current_idx + 1,
+            "total_questions": len(segment_plan),
+        }
+    else:
+        # teach / reinforce / practice / diagnostic — estimate via segment time
+        remaining_segments = segment_plan[current_idx:] if segment_plan else []
+        minutes_remaining = sum(
+            seg.get("target_minutes", 5) for seg in remaining_segments
+        )
+        progress = {"minutes_remaining": minutes_remaining}
+
     return ActiveSessionResponse(
         session_id=str(session.id),
         subject=session.subject,
@@ -369,8 +418,10 @@ async def get_active_session(
         started_at=session.started_at,
         message_count=len([m for m in messages if m.get("role") == "student"]),
         last_message=last_message,
-        segment_plan=session.segment_plan or [],
-        current_segment_idx=session.current_segment_idx or 0,
+        segment_plan=segment_plan,
+        current_segment_idx=current_idx,
+        session_type=session_type,
+        progress=progress,
     )
 
 
@@ -453,3 +504,59 @@ async def get_progress(
         strong_topics=[TopicMastery.model_validate(r) for r in strong],
         total_sessions=total_sessions,
     )
+
+
+# ── GET /sessions/{session_id} ────────────────────────────────────────────────
+
+@router.get("/{session_id}")
+async def get_session(
+    session_id: UUID,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return basic session info including persisted state (for hydration / autosave verification)."""
+    result = await db.execute(
+        select(TutorSession).where(TutorSession.id == session_id)
+    )
+    db_session = result.scalar_one_or_none()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    if str(db_session.student_id) != str(student.id):
+        raise HTTPException(status_code=403, detail="Not your session.")
+
+    return {
+        "session_id": str(db_session.id),
+        "subject": db_session.subject,
+        "state": db_session.state or {},
+    }
+
+
+# ── PATCH /sessions/{session_id}/state ───────────────────────────────────────
+
+@router.patch("/{session_id}/state")
+async def patch_session_state(
+    session_id: UUID,
+    patch: SessionStatePatch,
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+):
+    """Merge the given fields into session.state (JSONB). Does not wipe prior fields."""
+    result = await db.execute(
+        select(TutorSession).where(TutorSession.id == session_id)
+    )
+    db_session = result.scalar_one_or_none()
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    if str(db_session.student_id) != str(student.id):
+        raise HTTPException(status_code=403, detail="Not your session.")
+
+    # Merge — only include fields that were explicitly provided
+    current = dict(db_session.state or {})
+    incoming = patch.model_dump(exclude_unset=True)
+    merged = {**current, **incoming}
+    db_session.state = merged
+
+    # TutorSession has no updated_at column — skip that update
+    await db.flush()
+    await db.commit()
+    return {"ok": True}

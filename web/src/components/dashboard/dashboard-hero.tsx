@@ -1,0 +1,80 @@
+"use client";
+
+import { AlexNarration } from "./alex-narration";
+import { AlexObservations } from "./alex-observations";
+import { ReadinessSnapshot } from "./readiness-snapshot";
+import { SegmentCards } from "./segment-cards";
+import { SessionCta } from "./session-cta";
+
+export interface DashboardV3Segment {
+  intent: string;
+  topic: string;
+  why: string;
+  minutes: number;
+  questions: number;
+  sub_skills?: string[];
+  learning_objective?: string;
+}
+
+export interface DashboardV3ResumeState {
+  segment_index: number;
+  minutes_remaining: number;
+}
+
+export interface DashboardV3Payload {
+  narration: string;
+  readiness_snapshot: {
+    percent: number;
+    band: string;
+    band_color_index: number;
+    target_grade: string;
+    days_to_exam: number | null;
+  };
+  session_plan: DashboardV3Segment[];
+  total_minutes: number;
+  resume_state: DashboardV3ResumeState | null;
+}
+
+interface DashboardHeroProps {
+  data: DashboardV3Payload;
+  /** Subject slug — required to fetch Alex observations. Defaults to empty string (observations hidden). */
+  subject?: string;
+}
+
+export function DashboardHero({ data, subject = "" }: DashboardHeroProps) {
+  return (
+    <div className="max-w-[960px] mx-auto pt-12 px-4 space-y-12">
+      {/* Alex narration — left border colored by band_color_index (0-4) */}
+      <AlexNarration text={data.narration} bandColorIndex={data.readiness_snapshot.band_color_index} />
+
+      {/* Readiness snapshot */}
+      <ReadinessSnapshot snapshot={data.readiness_snapshot} />
+
+      {/* Session commitment block */}
+      <div className="space-y-6">
+        <div className="text-center">
+          <div className="font-sans text-[14px] text-[var(--text-secondary)]">
+            Today&apos;s Session
+          </div>
+          <div className="font-mono text-[16px] text-[var(--text-primary)] mt-1">
+            {data.total_minutes} minutes &middot; {data.session_plan.length} segments
+          </div>
+        </div>
+
+        {/* Segment cards */}
+        <SegmentCards segments={data.session_plan} />
+      </div>
+
+      {/* Session CTA */}
+      <div className="text-center">
+        <SessionCta
+          resumeState={data.resume_state}
+          totalSegments={data.session_plan.length}
+        />
+      </div>
+
+      {/* Alex weekly observations — renders nothing when list is empty */}
+      <AlexObservations subject={subject} />
+    </div>
+  );
+}
