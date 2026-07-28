@@ -19,6 +19,7 @@ export default function TargetGradeStep() {
     startTime.current = Date.now();
   }, []);
 
+  // v2: backend next_step = "preferences" but wizard has "assessment" before "preferences"
   const handleContinue = async () => {
     setContinuing(true);
     try {
@@ -40,13 +41,30 @@ export default function TargetGradeStep() {
     }
   };
 
+  // v3: step 5 is preferences; no assessment step — route directly
+  const handleContinueV3 = async () => {
+    setContinuing(true);
+    try {
+      await onboardingApi.submitTargetGrade({ target_grade: grade });
+      try {
+        posthog.capture("onboarding_step_completed", {
+          step_name: "target-grade",
+          time_on_step_sec: Math.round((Date.now() - startTime.current) / 1000),
+        });
+      } catch (_) {}
+      router.push("/onboarding/preferences");
+    } finally {
+      setContinuing(false);
+    }
+  };
+
   if (v3) {
     return (
       <OnboardingShell
         currentStep={4}
         alexLine="Readiness is measured against this. You can raise or lower it later."
         heading="What is your target grade?"
-        onContinue={handleContinue}
+        onContinue={handleContinueV3}
         canContinue={!!grade}
         continuing={continuing}
       >

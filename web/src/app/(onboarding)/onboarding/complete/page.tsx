@@ -53,7 +53,8 @@ export default function OnboardingCompletePage() {
         setPlan({ minutes: 22, segments: 3, sessionHref: "/sessions/today" });
       }
     })();
-  }, [router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return <OnboardingComplete plan={plan} />;
 }
