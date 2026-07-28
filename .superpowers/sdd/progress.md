@@ -347,3 +347,20 @@ Rollout runbook at docs/superpowers/deploys/2026-07-11-uiux-pass-rollout.md.
 Playwright smoke at tests/smoke/uiux_v3_smoke.py (placeholder — Playwright not installed in project; install playwright + playwright install chromium to activate browser smoke).
 
 Ready for whole-branch review + rollout.
+
+Task 34 implementer (sonnet, 857cf87): DONE. All 9 v3 flag guards verified (fixed one — progress_v3 default was true). Rollout runbook at docs/superpowers/deploys/2026-07-11-uiux-pass-rollout.md. Playwright smoke placeholder. 360 frontend + 327 backend passing.
+Task 34: complete (commits 7111a8f..857cf87).
+
+=== PHASE G (Progress + Account + Onboarding) complete. Tasks 30-34. ===
+=== SUB-PROJECT #4 COMPLETE. 34/34 tasks done. ===
+
+Branch: uiux-v3
+Base commit (main): 024050b (start of sub-project — before Task 1)
+Head commit: 857cf87 (Task 34)
+Total commits: ~70+ across 7 phases + inline fixes
+Tests: 360 frontend + 327 backend passing at time of Task 34 close
+
+Next steps:
+1. Final whole-branch review (per SDD skill)
+2. finishing-a-development-branch skill: merge, push, or keep-as-is
+3. Rollout per runbook (per-flag PostHog 5%→25%→50%→100%, 24h dwell, 7-day retirement)
