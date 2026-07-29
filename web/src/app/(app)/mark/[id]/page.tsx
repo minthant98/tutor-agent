@@ -67,7 +67,7 @@ export default function MarkResultPage({
       {!error && submission && submission.status !== "graded" && (
         <div className="mx-auto max-w-[880px] px-6 pt-12">
           <ProcessingStates
-            status={submission.status as "pending" | "extracting" | "grading" | "error"}
+            status={submission.status === "pending" ? "uploading" : submission.status as "extracting" | "grading" | "error"}
           />
         </div>
       )}

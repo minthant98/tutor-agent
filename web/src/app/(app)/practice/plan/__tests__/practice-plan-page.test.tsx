@@ -59,7 +59,7 @@ beforeEach(() => {
     segments: [{ intent: "teach", topic: "Substitution" }],
     minutes: 10,
   });
-  mockedStartSession.mockResolvedValue({ session_id: "sess-abc" });
+  mockedStartSession.mockResolvedValue({ session_id: "sess-abc", message: "ok", is_new_student: false });
 });
 
 describe("PracticePlanPage — source_submission_id forwarding", () => {

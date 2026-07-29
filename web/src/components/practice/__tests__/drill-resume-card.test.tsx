@@ -94,11 +94,12 @@ describe("DrillResumeCard", () => {
 
   it("is not rendered when caller has null data (conditional rendering)", () => {
     // Test the pattern used by PracticeLanding: null guard
+    const data: typeof RESUME_DATA | null = null;
     const { container } = render(
       <>
-        {null && (
+        {data && (
           <DrillResumeCard
-            data={RESUME_DATA}
+            data={data}
             onResume={vi.fn()}
             onStartOver={vi.fn()}
           />
