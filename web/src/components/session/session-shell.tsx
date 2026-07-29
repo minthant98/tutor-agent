@@ -3,12 +3,11 @@
 import { useEffect } from "react";
 import { SegmentBand, type SegmentDisplay } from "./segment-band";
 import { ExitSessionButton } from "./exit-session-button";
-import { AlexDrawer } from "./alex-drawer";
 
 interface SessionShellProps {
   segments: SegmentDisplay[];
   children: React.ReactNode;
-  /** Session ID passed through to AlexDrawer for context-aware chat. */
+  /** Session ID — kept for API compatibility; the drawer is mounted globally by AppShell. */
   sessionId?: string;
 }
 
@@ -29,7 +28,7 @@ interface SessionShellProps {
  *
  * The bottom action bar slot is left open for Task 13.
  */
-export function SessionShell({ segments, children, sessionId }: SessionShellProps) {
+export function SessionShell({ segments, children }: SessionShellProps) {
   // Set / clear the focus-mode attribute on <html>
   useEffect(() => {
     document.documentElement.setAttribute("data-session-focus", "true");
@@ -46,13 +45,10 @@ export function SessionShell({ segments, children, sessionId }: SessionShellProp
       {/* Exit button — absolute top-right */}
       <ExitSessionButton className="absolute top-2 right-2" />
 
-      {/* Main content area — Task 10 fills this in */}
+      {/* Main content area */}
       <main className="flex-1">{children}</main>
 
-      {/* Bottom action bar slot — Task 13 */}
-
-      {/* Alex drawer — always mounted so history + draft persist */}
-      {sessionId && <AlexDrawer sessionId={sessionId} />}
+      {/* Alex drawer is mounted globally by AppShell (reads sessionId from pathname) */}
     </div>
   );
 }

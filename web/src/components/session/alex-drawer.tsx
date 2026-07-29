@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import {
   Sheet,
   SheetContent,
@@ -15,7 +16,8 @@ import { useKeyboardShortcut } from "@/hooks/use-keyboard-shortcut";
 import { SendHorizonal } from "lucide-react";
 
 interface Props {
-  sessionId: string;
+  /** Session ID for context-aware chat. Null when opened outside a session. */
+  sessionId: string | null;
 }
 
 const SUGGESTION_CHIPS = [
@@ -40,8 +42,9 @@ const SUGGESTION_CHIPS = [
 export function AlexDrawer({ sessionId }: Props) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  const { messages, send, isStreaming } = useAlexSession(sessionId);
+  const { messages, send, isStreaming } = useAlexSession(sessionId ?? "");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inSession = sessionId !== null && sessionId !== "";
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────────
 
@@ -70,7 +73,7 @@ export function AlexDrawer({ sessionId }: Props) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!draft.trim() || isStreaming) return;
+    if (!draft.trim() || isStreaming || !inSession) return;
     send(draft.trim());
     setDraft("");
   }
@@ -107,7 +110,24 @@ export function AlexDrawer({ sessionId }: Props) {
           ref={scrollRef}
           className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 min-h-0"
         >
-          {messages.length === 0 ? (
+          {!inSession ? (
+            /* Out-of-session state: honest message + CTA */
+            <div className="flex flex-col gap-3 m-auto text-center px-2">
+              <p className="text-[14px] text-[var(--text-primary)]">
+                Alex answers questions inside a study session.
+              </p>
+              <p className="text-[12px] text-[var(--text-muted)]">
+                Start one to chat with Alex about the question you&apos;re working on.
+              </p>
+              <Link
+                href="/practice"
+                onClick={() => setOpen(false)}
+                className="inline-block mt-2 text-[13px] font-medium text-[var(--primary)] hover:underline"
+              >
+                Start a session →
+              </Link>
+            </div>
+          ) : messages.length === 0 ? (
             /* Empty state: suggestion chips */
             <div className="flex flex-col gap-2 mt-auto">
               <p className="text-[12px] text-[var(--text-muted)] text-center pb-2">
@@ -128,30 +148,32 @@ export function AlexDrawer({ sessionId }: Props) {
           )}
         </div>
 
-        {/* Input footer */}
-        <form
-          onSubmit={handleSubmit}
-          className="flex-none border-t border-[var(--border-subtle)] p-3 flex gap-2 items-end"
-        >
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask about the current question…"
-            rows={1}
-            className="flex-1 min-h-[36px] max-h-[120px] resize-none"
-            disabled={isStreaming}
-          />
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={!draft.trim() || isStreaming}
-            aria-label="Send"
+        {/* Input footer — hidden when no session is active */}
+        {inSession && (
+          <form
+            onSubmit={handleSubmit}
+            className="flex-none border-t border-[var(--border-subtle)] p-3 flex gap-2 items-end"
           >
-            <SendHorizonal className="h-4 w-4" />
-          </Button>
-        </form>
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask about the current question…"
+              rows={1}
+              className="flex-1 min-h-[36px] max-h-[120px] resize-none"
+              disabled={isStreaming}
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              disabled={!draft.trim() || isStreaming}
+              aria-label="Send"
+            >
+              <SendHorizonal className="h-4 w-4" />
+            </Button>
+          </form>
+        )}
       </SheetContent>
     </Sheet>
   );

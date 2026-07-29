@@ -1,9 +1,11 @@
 "use client";
+import { usePathname } from "next/navigation";
 import { useFeatureFlag } from "@/lib/feature-flags";
 import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 import { CmdK } from "./cmd-k";
 import { ShortcutHelp } from "./shortcut-help";
+import { AlexDrawer } from "@/components/session/alex-drawer";
 
 /**
  * AppShell — top-level layout shell gated behind the `shell_v3` PostHog flag.
@@ -17,6 +19,10 @@ import { ShortcutHelp } from "./shortcut-help";
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const v3Enabled = useFeatureFlag("shell_v3", true);
+  const pathname = usePathname() ?? "";
+  // Derive sessionId when we're inside /session/<id>; else null.
+  const sessionMatch = pathname.match(/^\/session\/([^/]+)/);
+  const sessionId = sessionMatch ? sessionMatch[1] : null;
 
   if (!v3Enabled) return <>{children}</>;
 
@@ -29,6 +35,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <CmdK />
       <ShortcutHelp />
+      <AlexDrawer sessionId={sessionId} />
     </div>
   );
 }
