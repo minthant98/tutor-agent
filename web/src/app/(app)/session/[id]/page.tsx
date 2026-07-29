@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { Suspense, useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { streamMessage, endSession } from '@/lib/api'
 import type { EvaluationCard, QuestionCard, Signal } from '@/lib/types'
@@ -209,6 +209,14 @@ const QUICK_ACTIONS = [
 ]
 
 export default function SessionPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--surface-0)]" />}>
+      <SessionPageContent />
+    </Suspense>
+  )
+}
+
+function SessionPageContent() {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const router = useRouter()

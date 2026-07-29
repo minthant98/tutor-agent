@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { practiceApi } from "@/lib/api/practice";
 import { useCurrentSubject } from "@/hooks/use-current-subject";
@@ -34,6 +34,14 @@ function PlanSkeleton() {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PracticePlanPage() {
+  return (
+    <Suspense fallback={<PlanSkeleton />}>
+      <PracticePlanContent />
+    </Suspense>
+  );
+}
+
+function PracticePlanContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { subject } = useCurrentSubject();
