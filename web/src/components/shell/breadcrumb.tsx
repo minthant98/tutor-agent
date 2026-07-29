@@ -41,7 +41,7 @@ export function Breadcrumb({ pathname: pathnameOverride, className }: Breadcrumb
   // Build segments, limiting to a maximum of TWO levels.
   let segments: { label: string; key: string }[];
 
-  if (pathname === "/") {
+  if (pathname === "/" || pathname === "/dashboard") {
     segments = [{ label: "Home", key: "home" }];
   } else {
     const parts = pathname.split("/").filter(Boolean);

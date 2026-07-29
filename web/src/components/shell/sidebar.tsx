@@ -18,7 +18,7 @@ import { useSidebarState } from "@/hooks/use-sidebar-state";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const NAV = [
-  { href: "/", label: "Home", icon: Home, shortcut: "⌘H" },
+  { href: "/dashboard", label: "Home", icon: Home, shortcut: "⌘H" },
   { href: "/practice", label: "Practice", icon: GraduationCap, shortcut: "⌘P" },
   { href: "/mark", label: "Exam Marker", icon: ClipboardCheck, shortcut: "⌘M" },
   { href: "/topics", label: "Topics", icon: BookOpen, shortcut: "⌘T" },
@@ -27,7 +27,7 @@ const NAV = [
 
 /** Determine if a nav item is active given the current pathname. */
 function isActive(href: string, pathname: string): boolean {
-  if (href === "/") return pathname === "/";
+  if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
 }
 
@@ -64,7 +64,7 @@ export function Sidebar({ inSheet }: SidebarProps) {
         >
           {!isCollapsed && (
             <Link
-              href="/"
+              href="/dashboard"
               className="font-sans text-14 font-semibold tracking-tight text-[var(--text-primary)]"
             >
               Stride

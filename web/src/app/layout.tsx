@@ -6,7 +6,6 @@ import './globals.css'
 import PostHogInit from './posthog-init'
 import { ThemeProvider } from '@/lib/theme-provider'
 import { Toaster } from '@/components/ui/toast'
-import { AppShell } from '@/components/shell/app-shell'
 
 export const metadata: Metadata = {
   title: 'Stride — A-Level AI Tutor',
@@ -19,9 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="h-full antialiased">
         <PostHogInit />
         <ThemeProvider>
-          <AppShell>
-            {children}
-          </AppShell>
+          {children}
           <Toaster />
         </ThemeProvider>
       </body>
