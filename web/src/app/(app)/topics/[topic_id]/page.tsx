@@ -70,7 +70,7 @@ function TopicDetailInner({ topicId, subject }: { topicId: string; subject: stri
   const [error, setError] = useState<Error | null>(null);
 
   // Read practice_v3 flag — available for downstream use (e.g. CTA deep-link)
-  const _practiceV3 = useFeatureFlag("practice_v3", false);
+  const _practiceV3 = useFeatureFlag("practice_v3", true);
 
   const fetchDetail = useCallback(() => {
     let cancelled = false;
@@ -134,7 +134,7 @@ function TopicDetailInner({ topicId, subject }: { topicId: string; subject: stri
 export default function TopicDetailPage() {
   const params = useParams();
   const topicId = typeof params.topic_id === "string" ? params.topic_id : "";
-  const topicsV3 = useFeatureFlag("topics_v3", false);
+  const topicsV3 = useFeatureFlag("topics_v3", true);
   const { subject } = useCurrentSubject();
 
   if (!topicsV3) return <LegacyTopicDetailPage />;

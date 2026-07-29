@@ -42,7 +42,7 @@ function ProgressStub() {
 }
 
 export default function ProgressPage() {
-  const progressEnabled = useFeatureFlag("progress_v3", false);
+  const progressEnabled = useFeatureFlag("progress_v3", true);
   const { subject } = useCurrentSubject();
 
   const [data, setData] = useState<ProgressV3 | null>(null);

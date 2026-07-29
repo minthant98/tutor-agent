@@ -40,7 +40,7 @@ function DashboardV3View({ subject }: { subject: string }) {
 }
 
 export default function DashboardPage() {
-  const v3 = useFeatureFlag("dashboard_v3", false);
+  const v3 = useFeatureFlag("dashboard_v3", true);
   const v2 = useFeatureFlag("dashboard_v2", true);
   const student = useStudent();
   const [subject, setSubject] = useState("pure_mathematics");

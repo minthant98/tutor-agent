@@ -221,7 +221,7 @@ function LegacyTopicsPage() {
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function TopicsPage() {
-  const v3 = useFeatureFlag("topics_v3", false);
+  const v3 = useFeatureFlag("topics_v3", true);
   const { subject } = useCurrentSubject();
 
   if (!v3) return <LegacyTopicsPage />;

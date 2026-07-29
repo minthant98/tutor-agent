@@ -15,7 +15,7 @@ function NewSubmissionLoader() {
   const router = useRouter();
   const questionId = searchParams.get("question_id");
   const { subject } = useCurrentSubject();
-  const markerV3 = useFeatureFlag("marker_v3", false);
+  const markerV3 = useFeatureFlag("marker_v3", true);
 
   // Guard: if marker_v3 is disabled, redirect to the landing page
   useEffect(() => {

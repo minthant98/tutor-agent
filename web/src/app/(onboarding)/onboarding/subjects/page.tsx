@@ -13,7 +13,7 @@ export default function SubjectsStep() {
   const startTime = useRef<number>(0);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [continuing, setContinuing] = useState(false);
-  const v3 = useFeatureFlag("onboarding_v3", false);
+  const v3 = useFeatureFlag("onboarding_v3", true);
 
   useEffect(() => {
     startTime.current = Date.now();

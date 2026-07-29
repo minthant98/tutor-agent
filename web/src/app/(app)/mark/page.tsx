@@ -17,7 +17,7 @@ type View = "loading" | "answering" | "grading" | "results" | "error";
 export default function MarkPage() {
   const router = useRouter();
   const markerEnabled = useFeatureFlag("marker_v2", true);
-  const markerV3Enabled = useFeatureFlag("marker_v3", false);
+  const markerV3Enabled = useFeatureFlag("marker_v3", true);
   const { subject } = useCurrentSubject();
   const [v3Data, setV3Data] = useState<MarkerV3LandingData | null>(null);
   const [v3Loading, setV3Loading] = useState(false);

@@ -14,7 +14,7 @@ function HistoryPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const markerEnabled = useFeatureFlag("marker_v2", true);
-  const markerV3 = useFeatureFlag("marker_v3", false);
+  const markerV3 = useFeatureFlag("marker_v3", true);
 
   const status = searchParams.get("status") ?? undefined;
   const difficulty = searchParams.get("difficulty") ?? undefined;

@@ -16,7 +16,7 @@ import { ShortcutHelp } from "./shortcut-help";
  * Plus the floating CmdK palette and ShortcutHelp modal.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const v3Enabled = useFeatureFlag("shell_v3", false);
+  const v3Enabled = useFeatureFlag("shell_v3", true);
 
   if (!v3Enabled) return <>{children}</>;
 

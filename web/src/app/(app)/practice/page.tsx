@@ -47,7 +47,7 @@ function LegacyPracticePage() {
 // ── Page ────────────────────────────────────────────────────────────────────
 
 export default function PracticePage() {
-  const v3 = useFeatureFlag("practice_v3", false);
+  const v3 = useFeatureFlag("practice_v3", true);
   const { subject } = useCurrentSubject();
 
   if (v3) return <PracticeV3View subject={subject} />;

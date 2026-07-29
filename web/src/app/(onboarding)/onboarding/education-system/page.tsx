@@ -11,7 +11,7 @@ export default function EducationSystemStep() {
   const router = useRouter();
   const startTime = useRef<number>(0);
   const [system, setSystem] = useState<string>("");
-  const v3 = useFeatureFlag("onboarding_v3", false);
+  const v3 = useFeatureFlag("onboarding_v3", true);
 
   useEffect(() => {
     startTime.current = Date.now();

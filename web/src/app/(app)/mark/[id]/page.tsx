@@ -14,7 +14,7 @@ export default function MarkResultPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const markerV3 = useFeatureFlag("marker_v3", false);
+  const markerV3 = useFeatureFlag("marker_v3", true);
   const [submission, setSubmission] = useState<SubmissionOut | null>(null);
   const [error, setError] = useState(false);
 

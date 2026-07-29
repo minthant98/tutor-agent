@@ -12,7 +12,7 @@ import { AccountShell } from "@/components/account/account-shell";
 import type { AccountOut } from "@/lib/types";
 
 export default function AccountPage() {
-  const v3 = useFeatureFlag("account_v3", false);
+  const v3 = useFeatureFlag("account_v3", true);
   const v2 = useFeatureFlag("account_v2", true);
   const router = useRouter();
   const [data, setData] = useState<AccountOut | null>(null);

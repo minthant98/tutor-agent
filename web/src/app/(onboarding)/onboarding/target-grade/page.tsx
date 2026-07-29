@@ -13,7 +13,7 @@ export default function TargetGradeStep() {
   const startTime = useRef<number>(0);
   const [grade, setGrade] = useState<string>("");
   const [continuing, setContinuing] = useState(false);
-  const v3 = useFeatureFlag("onboarding_v3", false);
+  const v3 = useFeatureFlag("onboarding_v3", true);
 
   useEffect(() => {
     startTime.current = Date.now();
